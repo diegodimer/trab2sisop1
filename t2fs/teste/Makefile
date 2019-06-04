@@ -14,17 +14,19 @@ INC_DIR=./include
 BIN_DIR=./bin
 SRC_DIR=./src
 
-all: regra1 regra2
 
+geratudo: regra1 regra2 regra3
 
 regra1: #cria .o da biblioteca
-	$(CC) -c $(SRC_DIR)/t2fs.c -o $(BIN_DIR)/t2fs.o -Wall
+	$(CC) -c t2fs.c -o t2fs.o -Wall
 	
 regra2: #cria .a da biblioteca
-	ar rcs $(LIB_DIR)/libt2fs.a $(BIN_DIR)/t2fs.o $(LIB_DIR)/apidisk.o
+	ar rcs libt2fs.a t2fs.o apidisk.o
+
+regra3: #cria o executavel e linka a biblioteca
+	$(CC) -o executavel main.c -L../teste -lt2fs -Wall
 	
 
-clean:
-	rm -rf $(LIB_DIR)/*.a $(BIN_DIR)/*.o $(SRC_DIR)/*~ $(INC_DIR)/*~ *~
 
-
+limpa:
+	rm -rf t2fs.o libt2fs.a executavel
