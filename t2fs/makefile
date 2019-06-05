@@ -17,11 +17,13 @@ SRC_DIR=./src
 all: regra1 regra2
 
 
-regra1: #cria .o da biblioteca
-	$(CC) -c $(SRC_DIR)/t2fs.c -o $(BIN_DIR)/t2fs.o -Wall
+regra1: #cria o .o da biblioteca
+	@echo "Criando arquivo t2fs.o"
+	$(CC) -I$(INC_DIR) -c $(SRC_DIR)/t2fs.c -o $(BIN_DIR)/t2fs.o -Wall
+	@echo " "
 	
 regra2: #cria .a da biblioteca
-	ar rcs $(LIB_DIR)/libt2fs.a $(BIN_DIR)/t2fs.o $(LIB_DIR)/apidisk.o
+	ar rcs $(LIB_DIR)/libt2fs.a $(BIN_DIR)/t2fs.o $(LIB_DIR)/*.o
 	
 
 clean:

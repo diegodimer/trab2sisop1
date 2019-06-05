@@ -21,7 +21,7 @@ MYDIR = .
 
 #loop por todos os arquivos .c do diretório compilando eles 
 gera_todos:
-	@for f in $(shell ls ${MYDIR}/*.c); do echo "Gerando arquivo " $${f}; gcc -static $${f} -L$(LIB_DIR) -I$(INC_DIR) -lt2fs -o $${f%.c}.run ; done
+	@for f in $(shell ls ${MYDIR}/*.c); do echo "Gerando arquivo " $${f}; gcc -static $${f} -L$(LIB_DIR) -I$(INC_DIR) -lt2fs -o $${f%.c}.run $(LIB_DIR)/*.o; done
 	
 	
 roda_todos:
