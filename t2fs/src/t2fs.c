@@ -32,6 +32,8 @@ int inicializado = 0;
 int debug = 1;
 int setoresPorBloco;
 
+
+// inicializa o sistema (preenche o diretório raiz, se não tiver cria. Supoem que o disco está formatado (variavel setoresporbloco preenchida)
 int init()
 {
     unsigned char buffer[257];
@@ -73,8 +75,42 @@ int init()
         }
     }
     inicializado = 1;
+    setoresPorBloco = rootDirectory.nBlocosSist;
     return 0;
 }
+
+
+// le um bloco da memória
+unsigned char* readBlock(DWORD firstSector){
+    if(!inicializado){
+        init();
+    }
+    if(firstSector<1){
+        return NULL; // se quer o bloco 0 ou negativo, não existe (começa em 1 o número de blocos)
+    }
+
+    unsigned char *buffer; // variável preenchida com o conteúdo do bloco
+    int tamanhoRetorno = (SECTOR_SIZE*setoresPorBloco); // bloco é setorsize*nsetoresporbloco
+    buffer = malloc(tamanhoRetorno);
+
+    int index = 0;
+    int i=0;
+    int j;
+    unsigned char* auxBuffer = malloc(SECTOR_SIZE);
+    while(i!=setoresPorBloco){
+        if(debug == 1){
+            printf("Lendo setor %d\n", firstSector+i);
+        }
+        read_sector(firstSector+i, auxBuffer);
+        for(j=0; j<SECTOR_SIZE;j++){
+            buffer[index] = auxBuffer[j];
+            index++;
+        }
+        i++;
+    }
+    return buffer;
+}
+
 
 /*-----------------------------------------------------------------------------
 Função:	Informa a identificação dos desenvolvedores do T2FS.
@@ -95,6 +131,8 @@ int identify2 (char *name, int size)
     return -1;
 }
 
+
+
 /*-----------------------------------------------------------------------------
 Função:	Formata logicamente o disco virtual t2fs_disk.dat para o sistema de
 		arquivos T2FS definido usando blocos de dados de tamanho
@@ -112,6 +150,7 @@ int format2 (int sectors_per_block)
         printf("Inicio: %04x - dec: %d\n", (dir->setorInicioP1), (int)dir->setorInicioP1);
         printf("Fim: %04x - dec: %d\n", (dir->setorFimP1), (int)dir->setorFimP1);
     }
+
     if(sectors_per_block < 2 || sectors_per_block % 1024 != 0 || sectors_per_block >= 1024)
     {
         return -1;
