@@ -5,7 +5,7 @@
 
 int main( int argc, char *argv[])
 {
-    char a[250];
-    printf("%d",identify2(a, 200));
+
+    format2(10);
 	return 0;
 }

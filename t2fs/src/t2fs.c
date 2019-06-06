@@ -1,4 +1,3 @@
-
 #include "t2fs.h"
 #include "apidisk.h"
 #include <stdio.h>
@@ -8,22 +7,39 @@
 #define ERRO_LEITURA -1
 #define ERRO_ESCRITA -2
 
-DIRENT2 rootDirectory;
+#define LAST_BLOCK 0
+
+typedef struct{
+    WORD  version;          /* Versão do trabalho */
+    WORD  sectorSize;       /* Tamanho do setor em Bytes */
+    WORD  tabelaParticoes;  /* Byte inicial da tabela de partições */
+    WORD  nParticoes;       /* Quantidade de partições no disco */
+    DWORD setorInicioP1;    /* endereço do bloco de início da partição 1 */
+    DWORD setorFimP1;       /* endereço do ultimo bloco da partição 1 */
+    BYTE  nome[25];         /* Nome da partição 1 */
+} MBR;
+
+typedef struct {
+    DWORD   proxBloco;     /* Variável para o próximo bloco ocupado por essa entrada */
+    DWORD   nBlocosSist;   /* Varíavel com o número de blocos no sistema */
+    char    name[231];      /* Nome do arquivo cuja entrada foi lida do disco      */
+    DWORD   fileSize;       /* Numero de bytes do arquivo */
+} ROOTDIR;
+
+
+ROOTDIR rootDirectory;
 int inicializado = 0;
 int debug = 1;
-/*-----------------------------------------------------------------------------
-Função:	Informa a identificação dos desenvolvedores do T2FS.
------------------------------------------------------------------------------*/
-
+int setoresPorBloco;
 
 int init()
 {
     unsigned char buffer[257];
     if(read_sector(1, buffer))
         return ERRO_LEITURA;
-    DIRENT2 *dir;
-    dir = (DIRENT2 *) buffer;
-    if(strlen(dir->name) == 0 || strcmp(dir->name, "Root Directory")!=0)
+    ROOTDIR *dir;
+    dir = (ROOTDIR *) buffer;
+    if(strlen(dir->name) == 0 || strcmp(dir->name, "root")!=0)
     {
         if(debug == 1)
         {
@@ -31,11 +47,11 @@ int init()
             printf("Criando diretório raiz...\n");
         }
         // criação do diretório raiz
-        strcpy(rootDirectory.name, "Root Directory");
-        rootDirectory.fileSize   = sizeof(DIRENT2);///256*sectors_per_block    // tem o tamanho de um bloco
-        rootDirectory.ultimoBloco= 1;                  // está vazio então esse é o último
-        rootDirectory.proxBloco = 1;                   // se está sendo criado, o diretório raiz está vazio
-        rootDirectory.fileType   = 0x02;               // tipo diretório
+        strcpy(rootDirectory.name, "root");
+        rootDirectory.fileSize   = sizeof(ROOTDIR);
+        rootDirectory.proxBloco = LAST_BLOCK;                   // não tem próximo bloco = 0
+        rootDirectory.nBlocosSist = setoresPorBloco;
+
         if(!write_sector(1, (unsigned char*)&rootDirectory))
         {
             if(debug == 1)
@@ -54,14 +70,15 @@ int init()
         {
             printf("Diretório raiz lido com sucesso!\n");
             printf("Root directory name: %s\n", rootDirectory.name);
-            printf("File size: %d\nFile type: %d\nLast Sector: %d\nNext Sector: %d\n", (int)rootDirectory.fileSize, (int)rootDirectory.fileType, (int)rootDirectory.ultimoBloco, (int)rootDirectory.proxBloco);
         }
     }
     inicializado = 1;
     return 0;
 }
 
-
+/*-----------------------------------------------------------------------------
+Função:	Informa a identificação dos desenvolvedores do T2FS.
+-----------------------------------------------------------------------------*/
 int identify2 (char *name, int size)
 {
     if(!inicializado)
@@ -85,6 +102,16 @@ Função:	Formata logicamente o disco virtual t2fs_disk.dat para o sistema de
 -----------------------------------------------------------------------------*/
 int format2 (int sectors_per_block)
 {
+    unsigned char buffer[257];
+    if(read_sector(0, buffer))
+        return ERRO_LEITURA;
+    MBR* dir; // lê o MBR
+    dir = (MBR *) buffer;
+    if(debug == 1){
+        printf("%s\n", dir->nome);
+        printf("Inicio: %04x - dec: %d\n", (dir->setorInicioP1), (int)dir->setorInicioP1);
+        printf("Fim: %04x - dec: %d\n", (dir->setorFimP1), (int)dir->setorFimP1);
+    }
     if(sectors_per_block < 2 || sectors_per_block % 1024 != 0 || sectors_per_block >= 1024)
     {
         return -1;
@@ -101,6 +128,7 @@ Função:	Função usada para criar um novo arquivo no disco e abrí-lo,
 -----------------------------------------------------------------------------*/
 FILE2 create2 (char *filename)
 {
+    // o caminho é absoluto, então filename vem desde o root até onde é, eu entro no root, vejo se
     return -1;
 }
 
