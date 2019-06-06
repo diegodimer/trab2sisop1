@@ -4,15 +4,8 @@
 #include "t2fs.h"
 
 int main( int argc, char *argv[])
-{	
-	int tam_setor = 256; //tamanho do setor em bytes
-	
-	char *conteudo;
-	conteudo = malloc(tam_setor);
-	
-	//lendo setor 1 do disco e gravando em conteudo
-	read_sector (1, conteudo);
-	printf("\n bytes do setor 1: %p \n",(void *)conteudo);
-	
+{
+    char a[250];
+    printf("%d",identify2(a, 200));
 	return 0;
 }
