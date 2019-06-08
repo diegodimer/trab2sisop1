@@ -31,7 +31,7 @@ ROOTDIR rootDirectory;
 int inicializado = 0;
 int debug = 1;
 int setoresPorBloco;
-
+int bloco_livre =0;
 
 // inicializa o sistema (preenche o diretório raiz, se não tiver cria. Supoem que o disco está formatado (variavel setoresporbloco preenchida)
 int init()
@@ -131,6 +131,39 @@ int identify2 (char *name, int size)
     return -1;
 }
 
+//aloca um bloco na memoria, retorna O SETOR INICIAL DO BLOCO 
+int aloca_bloco()
+{
+	
+	if(bloco_livre==0){
+		printf("\n nao ha mais blocos disponiveis! \n");
+		return -1;
+	}
+	unsigned char buffer[SECTOR_SIZE];
+	
+	read_sector(bloco_livre,buffer);
+	
+	int novo_bloco_livre = buffer[1]<<8 | buffer[0];
+	int retorno = bloco_livre;
+	bloco_livre = novo_bloco_livre;
+	
+	return retorno;
+	
+	
+}
+//libera um bloco ocupado, esse bloco se junta à linked list dos blocos livres
+void libera_bloco(int id_bloco)
+{
+	unsigned char vetor0[SECTOR_SIZE]={0};
+	//salva o endereço do antigo bloco livre no bloco passado como parametro
+	vetor0[1] = (bloco_livre>>8);
+	vetor0[0] = bloco_livre;
+	if(write_sector(id_bloco,vetor0)!=0)
+		printf("erro ao liberar bloco ! \n");
+	else bloco_livre = id_bloco;
+
+	
+}
 
 
 /*-----------------------------------------------------------------------------
@@ -140,21 +173,65 @@ Função:	Formata logicamente o disco virtual t2fs_disk.dat para o sistema de
 -----------------------------------------------------------------------------*/
 int format2 (int sectors_per_block)
 {
-    unsigned char buffer[257];
-    if(read_sector(0, buffer))
-        return ERRO_LEITURA;
-    MBR* dir; // lê o MBR
-    dir = (MBR *) buffer;
-    if(debug == 1){
-        printf("%s\n", dir->nome);
-        printf("Inicio: %04x - dec: %d\n", (dir->setorInicioP1), (int)dir->setorInicioP1);
-        printf("Fim: %04x - dec: %d\n", (dir->setorFimP1), (int)dir->setorFimP1);
-    }
-
     if(sectors_per_block < 2 || sectors_per_block % 1024 != 0 || sectors_per_block >= 1024)
     {
         return -1;
     }
+	//lendo o endereço da partição a ser formatada e transformando de bytes para int
+	unsigned char conteudo_mbr[SECTOR_SIZE];
+	if(read_sector(0,conteudo_mbr)!=0)
+		printf("\n erro ao ler mbr \n");
+	char conteudo_bytes[]={conteudo_mbr[8],conteudo_mbr[9],conteudo_mbr[10],conteudo_mbr[11]};
+	int *end_part = (int *)conteudo_bytes;
+	
+	//lendo o ultimo bloco lógico (setor) da partição a ser formatada e transformando de bytes para int
+	char conteudo_ultimo[] = {conteudo_mbr[12],conteudo_mbr[13],conteudo_mbr[14],conteudo_mbr[15]};
+	int *end_ultimosetor = (int *)conteudo_ultimo;
+	
+	unsigned char vetorzeros[SECTOR_SIZE]={0};
+	
+	//escreve zeros em todos os setores da partição
+	int i;
+	for(i=*end_part;i<=*end_ultimosetor;i++){
+		if(write_sector(i,vetorzeros)!=0){
+			printf("\n erro na formatação dos setores \n");
+			return -2;
+		}
+	}
+	
+	//escreve o endereço do próximo bloco livre nos 2 primeiros bytes de cada bloco
+	
+	for(i= *end_part;i<*end_ultimosetor-sectors_per_block;i=i+sectors_per_block){
+		
+		int prox_bloco= i + sectors_per_block;
+		vetorzeros[1]=(prox_bloco>>8);
+		vetorzeros[0]=prox_bloco;
+		//printf(" it: %d numero sendo salvo %02x %02x \n",i,vetorzeros[0]&0xFF,vetorzeros[1]&0xFF);
+		//char numint[2]={vetorzeros[0],vetorzeros[1]};
+		//int gg = *(int *)numeroemint;
+		//printf(" numero em int: %d \n",gg);
+		if(write_sector(i,vetorzeros)!=0){
+			printf("\n erro na formatação dos blocos livres\n");
+			return -3;
+		}
+		
+	}
+	//define a variavel global do inicio da linked list de blocos livres como o bloco 2
+	bloco_livre = *end_part + sectors_per_block;
+	
+	
+	//!!!!!!!!!!!!!!!!!!!!!ATENÇÃO!!!!!!!!!!!!!!!!!!!!!
+	//UNICO COMANDO QUE TRANSFORMA OS BYTES DO ARQUIVO EM INT CORRETAMENTE:
+	// int numero_do_setor = buffer[1]<<8 | buffer[0];
+	
+	
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ATENÇÃO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//!!!!!!!!!!!!FOI DEFINIDO ARBITRARIAMENTE QUE UM PONTEIRO PARA BLOCO LIVRE COM VALOR 0 SIGNIFICA QUE NÃO HÁ MAIS BLOCOS LIVRES DISPONIVEIS!!!!!!!!!!
+	
+		
+	
+	
+	
     return 0;
 }
 
