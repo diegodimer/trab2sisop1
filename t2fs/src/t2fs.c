@@ -199,18 +199,18 @@ int identify2 (char *name, int size)
 int aloca_bloco()
 {
 
-    if(bloco_livre==0)
+    if(rootDirectory.bloco_livre==0)
     {
         printf("\n nao ha mais blocos disponiveis! \n");
         return -1;
     }
     unsigned char buffer[SECTOR_SIZE];
 
-    read_sector(bloco_livre,buffer);
+    read_sector(rootDirectory.bloco_livre,buffer);
 
     int novo_bloco_livre = buffer[1]<<8 | buffer[0];
-    int retorno = bloco_livre;
-    bloco_livre = novo_bloco_livre;
+    int retorno = rootDirectory.bloco_livre;
+    rootDirectory.bloco_livre = novo_bloco_livre;
 
     return retorno;
 
@@ -221,12 +221,12 @@ void libera_bloco(int id_bloco)
 {
     unsigned char vetor0[SECTOR_SIZE]= {0};
     //salva o endereço do antigo bloco livre no bloco passado como parametro
-    vetor0[1] = (bloco_livre>>8);
-    vetor0[0] = bloco_livre;
+    vetor0[1] = (rootDirectory.bloco_livre>>8);
+    vetor0[0] = rootDirectory.bloco_livre;
     if(write_sector(id_bloco,vetor0)!=0)
         printf("erro ao liberar bloco ! \n");
     else
-        bloco_livre = id_bloco;
+        rootDirectory.bloco_livre = id_bloco;
 
 
 }
