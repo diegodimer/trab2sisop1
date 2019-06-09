@@ -33,6 +33,7 @@ typedef struct
     DWORD  *dirFilhos;     /* LISTA DE DIRETÓRIOS FILHOS */
     int     numFilhos;
     DWORD   nBlocosSist;   /* Varíavel com o número de blocos no sistema */
+	int		bloco_livre;
 } ROOTDIR;
 
 typedef struct
@@ -86,6 +87,7 @@ int init()
         rootDirectory.nBlocosSist = setoresPorBloco;
         rootDirectory.dirFilhos = NULL;
         rootDirectory.numFilhos = 0;
+		rootDirectory.bloco_livre = bloco_livre;
 
         if(!writeBlock((unsigned char*)&rootDirectory, 1))
         {
@@ -184,7 +186,7 @@ int identify2 (char *name, int size)
         if(init()!=0)
             return ERRO_LEITURA;
     };
-    if(size>= strlen("Afonto, Diego, Eduardo"))
+    if(size>= strlen("Afonso, Diego, Eduardo"))
     {
         strcpy(name, "Afonso, Diego, Eduardo");
         return 1;
