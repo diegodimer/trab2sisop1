@@ -26,13 +26,14 @@ typedef struct
 
 int main( int argc, char *argv[])
 {
-    format2(8);
-    mkdir2("/a");
-    mkdir2("/b");
-    mkdir2("/a/c");
-    mkdir2("/a/c/d");
-    mkdir2("/diego");
-    mkdir2("/b/cu");
+    //format2(8);
+
+    mkdir2("/a/BECE");
+//    mkdir2("/a/c/e");
+//    mkdir2("/a/c/d");
+//    mkdir2("/diego");
+//    mkdir2("/b/cu");
+//    mkdir2("/b/cu2");
 
     printf("-----lendo bloco------\n");
     unsigned char *buffer =  NULL;

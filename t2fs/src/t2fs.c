@@ -49,7 +49,7 @@ typedef struct
 ROOTDIR rootDirectory;
 int inicializado = 0;
 int debug = 1;
-int setoresPorBloco;
+int setoresPorBloco=2;
 int bloco_livre =0;
 
 
@@ -68,12 +68,13 @@ int init()
     inicializado = 1;
     buffer = readBlock(1);
 
-    if(buffer == NULL)
+    if(buffer == NULL){
         return ERRO_LEITURA;
+    }
     ROOTDIR *dir;
     dir = (ROOTDIR *) buffer;
 
-    if(strlen(dir->name) == 0 || strcmp(dir->name, "root")!=0)
+    if(strcmp(dir->name, "root")!=0)
     {
         if(debug == 1)
         {
@@ -108,9 +109,13 @@ int init()
             printf("Diretório raiz lido com sucesso!\n");
             printf("Root directory name: %s\n", rootDirectory.name);
         }
+        setoresPorBloco = rootDirectory.nBlocosSist;
+        bloco_livre = rootDirectory.bloco_livre;
     }
 
-    setoresPorBloco = rootDirectory.nBlocosSist;
+
+
+    free(buffer);
     return 0;
 }
 
@@ -172,6 +177,7 @@ unsigned char* readBlock(DWORD firstSector)
         }
         i++;
     }
+    free(auxBuffer);
     return buffer;
 }
 
@@ -288,6 +294,9 @@ int format2 (int sectors_per_block)
     }
     //define a variavel global do inicio da linked list de blocos livres como o bloco 2
     bloco_livre = *end_part + sectors_per_block;
+    setoresPorBloco = sectors_per_block;
+    inicializado=0;
+    init();
 
 
     //!!!!!!!!!!!!!!!!!!!!!ATENÇÃO!!!!!!!!!!!!!!!!!!!!!
@@ -296,8 +305,7 @@ int format2 (int sectors_per_block)
 
     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ATENÇÃO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     //!!!!!!!!!!!!FOI DEFINIDO ARBITRARIAMENTE QUE UM PONTEIRO PARA BLOCO LIVRE COM VALOR 0 SIGNIFICA QUE NÃO HÁ MAIS BLOCOS LIVRES DISPONIVEIS!!!!!!!!!!
-    setoresPorBloco = sectors_per_block;
-    init();
+
     return 0;
 }
 
@@ -567,8 +575,10 @@ int mkdir2 (char *pathname)
     }
 
 
+    free(buffer);
 
-    return -1;
+
+    return 0;
 }
 
 /*-----------------------------------------------------------------------------
