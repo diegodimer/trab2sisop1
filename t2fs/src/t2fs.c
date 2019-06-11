@@ -55,7 +55,7 @@ int bloco_livre =0;
 
 
 // Funções auxiliares
-int writeBlock(unsigned char *, int );
+int writeBlock(unsigned char *, DWORD);
 unsigned char* readBlock(DWORD);
 int aloca_bloco();
 void libera_bloco(int );
@@ -80,6 +80,7 @@ int init()
         return ERRO_LEITURA;
     }
     ROOTDIR *dir;
+    dir = calloc(setoresPorBloco*SECTOR_SIZE, sizeof(BYTE));
     dir = (ROOTDIR *) buffer;
 
     if(strcmp(dir->name, "root")!=0)
@@ -123,15 +124,17 @@ int init()
         bloco_livre = rootDirectory->bloco_livre;
 
     }
-    free(buffer);
+
     return 0;
 }
 
 /** ESSA FUNÇÃO NÃO CUIDA SE PODE OU NÃO ESCREVER NO BLOCO, NEM A CORRETUDE (FIRSTSECTOR SENDO MULTIPLO DE 2)!
  ELA APENAS ESCREVE **/
 // escreve data no bloco que começa no setor firstSector
-int writeBlock(unsigned char *data, int firstSector)
+int writeBlock(unsigned char *data, DWORD firstSector)
 {
+    if (firstSector == -1)
+        return -1;
     if(!inicializado)
     {
         init();
@@ -219,7 +222,7 @@ int aloca_bloco()
     if(rootDirectory->bloco_livre==0)
     {
         printf("\n nao ha mais blocos disponiveis! \n");
-        return -1;
+        return 0;
     }
     unsigned char buffer[SECTOR_SIZE];
 
@@ -229,6 +232,7 @@ int aloca_bloco()
     int retorno = rootDirectory->bloco_livre;
     rootDirectory->bloco_livre = novo_bloco_livre;
 
+    writeBlock((unsigned char*)rootDirectory, 1);
     return retorno;
 
 
@@ -396,10 +400,13 @@ Função:	Função usada para criar um novo diretório.
 -----------------------------------------------------------------------------*/
 int mkdir2 (char *pathname)
 {
+
     if(!inicializado)
     {
         init();
     }
+
+
     if(pathname[0] != '/' || strlen(pathname) < 2) // o caminho é sempre absoluto, então se não entrou / no início não tá tentando acessar diretório raiz
     {
         printf("pathname incorreto, uso: /path_to_dir\n");
@@ -410,42 +417,43 @@ int mkdir2 (char *pathname)
     char *dir = strtok(pathname2, "/"); // o que procurar no diretório raiz
 
     // bloco onde salvar o novo diretório
-    int novoSubDiretorioBloco;
-    int novoDiretorioBloco;
+    DWORD novoSubDiretorioBloco;
+    DWORD novoDiretorioBloco;
     // novo diretório
     DIRENT3 *novoDiretorio = NULL;
     DIRENT3 *novoSubDiretorio = NULL;
     DIRENT3 *dirAuxiliar = NULL;
-    int encontrado = 0;
 
     unsigned char *buffer = NULL;
 
-    int n=0;
+
     int m=0;
 
+    int n=0;
+    int encontrado = 0;
     while(rootDirectory->numFilhos > n && encontrado == 0)  // procuro nos filhos do diretório raiz o filho dir
     {
 
-        if((int)rootDirectory->dirFilhos[n] > -1) // garantia
-        {
-            buffer = readBlock(rootDirectory->dirFilhos[n]);
-            novoDiretorio = (DIRENT3 *)buffer;
-            novoDiretorioBloco = rootDirectory->dirFilhos[n]; // o bloco onde o novoDiretorio está é no diretório raiz
+        novoDiretorioBloco = *(rootDirectory->dirFilhos+n); // o bloco onde o novoDiretorio está é no diretório raiz
+        buffer = readBlock(novoDiretorioBloco);
+        novoDiretorio = (DIRENT3 *)buffer;
 
-            // comparar o diretório que estou (novodiretorio) com o que quero criar
-            if(!strcmp(novoDiretorio->name, dir))
+        // comparar o diretório que estou (novodiretorio) com o que quero criar
+        if(!strcmp(novoDiretorio->name, dir))
+        {
+            // se eles forem iguais encontrei
+            encontrado = 1;
+            if(debug == 1)
             {
-                // se eles forem iguais encontrei
-                encontrado = 1;
-                if(debug == 1){
-                    printf("Encontrei %s no diretorio raiz!\n", dir);
-                }
-            }
-            else
-            {
-                n++;
+                printf("Encontrei %s no diretorio raiz!\n", dir);
             }
         }
+        else
+        {
+            n++;
+
+        }
+
     }
 
     // se o diretório raiz tem 0 filhos ou eu não encontrei, preciso criar dentro do diretório raiz o dir
@@ -459,7 +467,7 @@ int mkdir2 (char *pathname)
         }
         novoDiretorioBloco = aloca_bloco();
         // se não tem filhos no raiz, criar um
-        if(novoDiretorioBloco == -1)
+        if(novoDiretorioBloco == 0)
         {
             return -1;
 
@@ -504,10 +512,10 @@ int mkdir2 (char *pathname)
     }
 
     dir = strtok(NULL, "/");
-
+    encontrado = 0;
+    m=0;
     while(dir != NULL) // enquanto ainda tiver subdiretórios
     {
-        encontrado = 0;
         // procurar em novoDiretorio a entrada com nome dir
         // se encontrar -> ela é novoDiretorio
         // se não encontrar -> criar ela e ela é novoDiretorio
@@ -520,13 +528,14 @@ int mkdir2 (char *pathname)
             // compara o dirAuxiliar com o que estou procurando
             if(!strcmp(dirAuxiliar->name, dir))
             {
-                if(debug == 1){
+                if(debug == 1)
+                {
                     printf("Encontrado %s como subdiretorio de %s\n", dir, novoDiretorio->name);
                 }
                 encontrado = 1;
                 // se for igual encontrei
                 novoDiretorio = dirAuxiliar;
-                novoDiretorioBloco = novoDiretorio->dirFilhos[m];
+                novoDiretorioBloco = *(novoDiretorio->dirFilhos+m);
                 // ele é o novoDiretorio, para procurar o proxímo token nele
             }
             else
@@ -539,8 +548,9 @@ int mkdir2 (char *pathname)
         // se acabou o loop e não encontrou
         if (encontrado == 0)
         {
-            novoSubDiretorioBloco = aloca_bloco(); // aloca bloco pra guardar o novo diretório
-            if(novoSubDiretorioBloco == -1)  // se não consegue alocar bloco não pode criar
+            novoSubDiretorioBloco = (DWORD)aloca_bloco(); // aloca bloco pra guardar o novo diretório
+
+            if(novoSubDiretorioBloco == 0)  // se não consegue alocar bloco não pode criar
             {
                 return -1;
             }
@@ -584,10 +594,12 @@ int mkdir2 (char *pathname)
         }
 
         dir = strtok(NULL, "/");
+        encontrado = 0;
     }
+
+
+
     free(buffer);
-
-
     return 0;
 
 }
