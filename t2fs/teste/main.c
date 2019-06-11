@@ -28,27 +28,15 @@ typedef struct
 
 int main( int argc, char *argv[])
 {
-   format2(8);
+    char path[100];
 
-    unsigned char *buff = (unsigned char*)readBlock(1);
-    ROOTDIR *root = (ROOTDIR *)buff;
-    printf("rooty: %s\n", root->name);
-    printf("1o bloco livre: %d\n", root->bloco_livre);
-    printf("filhos: %d\n", root->numFilhos);
-//    format2(8);
-//    mkdir2("/a");
-//    mkdir2("/b");
-//    mkdir2("/c");
-//    mkdir2("/d");
-//    mkdir2("/e");
-//    mkdir2("/f");
-//    mkdir2("/g");
-//    mkdir2("/h");
-//    mkdir2("/i");
-//    mkdir2("/d/ef");
-//        mkdir2("/d/eg");
-
-
+    while(1){
+    gets(path);
+    puts(path);
+    chdir2(path);
+    getcwd2(path, 100);
+    printf("path: %s\n", path);
+    }
 
     return 0;
 }

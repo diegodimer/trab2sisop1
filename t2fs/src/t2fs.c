@@ -60,6 +60,12 @@ unsigned char* readBlock(DWORD);
 int aloca_bloco();
 void libera_bloco(int );
 int init();
+DIRENT3 *lookForDir(char*);
+
+// variáveis relativas ao current path
+char *currentPath=NULL;
+DIRENT3 *currentDir;
+int raiz; // se está no diretório raiz
 
 // inicializa o sistema (preenche o diretório raiz, se não tiver cria. Supoem que o disco está formatado (variavel setoresporbloco preenchida)
 int init()
@@ -617,7 +623,43 @@ Função:	Função usada para alterar o CP (current path)
 -----------------------------------------------------------------------------*/
 int chdir2 (char *pathname)
 {
-    return -1;
+
+    if(!inicializado)
+    {
+        init();
+    }
+    if(!pathname || strcmp(pathname, "/") == 0) // só cd no linux leva pro diretório raiz
+    {
+        printf("Ir para o dir. raiz\n");
+        free(currentPath);
+        currentPath = malloc(sizeof(char)*2);
+        strcpy(currentPath, "/");
+        raiz = 1;
+        return 0;
+    }
+
+    int sucesso = 0;
+    DIRENT3 *pathDir = lookForDir(pathname);
+    printf("CURRENT PATH NO DIRETORIO %s\n", pathDir->name);
+
+    if(pathDir==NULL)
+    {
+        sucesso = 0;
+    }
+    else
+    {
+        sucesso = 1;
+    }
+    if(sucesso) // se eu achei o diretório pathname é sucesso, newpath é pathname
+    {
+        char *newPath = calloc(strlen(pathname), sizeof(char));
+        if(newPath==NULL)
+            return -1;
+        strcpy(newPath, pathname);
+        free(currentPath);
+        currentPath = newPath;
+    }
+    return 0;
 }
 
 /*-----------------------------------------------------------------------------
@@ -625,7 +667,20 @@ Função:	Função usada para obter o caminho do diretório corrente.
 -----------------------------------------------------------------------------*/
 int getcwd2 (char *pathname, int size)
 {
-    return -1;
+    if(!inicializado)
+    {
+        init();
+    }
+    if(currentPath == NULL)
+    {
+        currentPath = malloc(sizeof(char)*2);
+        strcpy(currentPath, "/");
+    }
+    if(strlen(currentPath)>size)
+        return -1;
+    else
+        strcpy(pathname, currentPath);
+    return 0;
 }
 
 /*-----------------------------------------------------------------------------
@@ -662,5 +717,115 @@ int ln2 (char *linkname, char *filename)
     return -1;
 }
 
+DIRENT3 *lookForDir(char* path)
+{
+
+    if(path[0] != '/') // o caminho é sempre absoluto, então se não entrou / no início não tá tentando acessar diretório raiz
+    {
+        printf("pathname incorreto, uso: /path_to_dir\n");
+        return NULL;
+    };
+
+    char *pathname2 = strdup(path); // não da pra pegar direto de pathname
+    char *dir = strtok(pathname2, "/"); // o que procurar no diretório raiz
+
+
+    DWORD novoDiretorioBloco; // bloco onde está o novo diretório lido
+    DIRENT3 *novoDiretorio = NULL; // novo diretório lido
+    DIRENT3 *dirAuxiliar = NULL; // diretório auxiliar na procura de subdiretorios
+    unsigned char *buffer = NULL; // buffer pra leitura de blocos
+
+    // contadores e flag
+    int m=0;
+    int n=0;
+    int encontrado = 0;
+
+    while(rootDirectory->numFilhos > n && encontrado == 0)  // procuro nos filhos do diretório raiz o filho dir
+    {
+        novoDiretorioBloco = *(rootDirectory->dirFilhos+n); // o bloco onde o novoDiretorio está é no diretório raiz
+        buffer = readBlock(novoDiretorioBloco);
+        novoDiretorio = (DIRENT3 *)buffer;
+
+        // comparar o diretório que estou (novodiretorio) com o que quero criar
+        if(!strcmp(novoDiretorio->name, dir))
+        {
+            // se eles forem iguais encontrei
+            encontrado = 1;
+            if(debug == 1)
+            {
+                printf("Encontrei %s no diretorio raiz!\n", novoDiretorio->name);
+            }
+        }
+        else
+        {
+            n++;
+
+        }
+
+    }
+
+    // se não encontrei retorna null e desaloca memória do buffer
+    if(encontrado == 0)
+    {
+        if(debug == 1)
+        {
+            printf("Diretório %s nao encontrado no diretorio raiz!\n", dir);
+        }
+        free(buffer);
+        return NULL;
+    }
+    else // se encontrei procura o próximo subdiretório
+    {
+        dir = strtok(NULL, "/");
+        encontrado = 0;
+        m=0;
+        while(dir != NULL) // enquanto ainda tiver subdiretórios
+        {
+            // procurar em novoDiretorio a entrada com nome dir
+            // se encontrar -> ela é novoDiretorio
+            while(m < novoDiretorio->numFilhos && encontrado == 0)  // itera por todos os filhos do novo dirretório ou até encontrar
+            {
+                //procurar em novoDiretorio os filhos até achar algum com nome de dir
+                // le o bloco
+                buffer = readBlock(novoDiretorio->dirFilhos[m]);
+                dirAuxiliar = (DIRENT3 *) buffer;
+                // compara o dirAuxiliar com o que estou procurando
+                if(!strcmp(dirAuxiliar->name, dir))
+                {
+                    if(debug == 1)
+                    {
+                        printf("Encontrado %s como subdiretorio de %s\n", dir, novoDiretorio->name);
+                    }
+                    encontrado = 1;
+                    // se for igual encontrei
+                    novoDiretorio = dirAuxiliar;
+                    novoDiretorioBloco = *(novoDiretorio->dirFilhos+m);
+                    // ele é o novoDiretorio, para procurar o proxímo token nele
+                }
+                else
+                {
+                    m++;
+                }
+            }
+            m=0; // para próxima iteração
+
+            // se acabou o loop e não encontrou, desaloca buffer e retorna null
+            if (encontrado == 0)
+            {
+                if(debug==1)
+                {
+                    printf("Nao encontrado subdiretorio %s\n", dir);
+                }
+                free(buffer);
+                return NULL;
+            }
+
+            dir = strtok(NULL, "/");
+            encontrado = 0;
+        }
+
+        return novoDiretorio;
+    }
+}
 
 
