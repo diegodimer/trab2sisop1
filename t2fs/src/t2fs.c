@@ -48,7 +48,7 @@ typedef struct
 
 ROOTDIR *rootDirectory;
 int inicializado = 0;
-int debug = 1;
+int debug = 0;
 DWORD setoresPorBloco=2;
 int bloco_livre =0;
 
@@ -610,6 +610,10 @@ int mkdir2 (char *pathname)
 
 }
 
+
+
+
+
 /*-----------------------------------------------------------------------------
 Função:	Função usada para remover (apagar) um diretório do disco.
 -----------------------------------------------------------------------------*/
@@ -719,6 +723,7 @@ int ln2 (char *linkname, char *filename)
 
 DIRENT3 *lookForDir(char* path)
 {
+
 
     if(path[0] != '/') // o caminho é sempre absoluto, então se não entrou / no início não tá tentando acessar diretório raiz
     {

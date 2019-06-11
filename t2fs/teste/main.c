@@ -30,12 +30,10 @@ int main( int argc, char *argv[])
 {
     char path[100];
 
+    format2(8);
     while(1){
     gets(path);
-    puts(path);
-    chdir2(path);
-    getcwd2(path, 100);
-    printf("path: %s\n", path);
+    mkdir2(path);
     }
 
     return 0;
