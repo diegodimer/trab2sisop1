@@ -18,4 +18,6 @@ int main()
     s= realloc(s,sizeof(*s)+sizeof(int)*4);
     s->a[3]=1230;
     printf("-%d-%d-%d-",s->a[0], s->a[1], s->a[3]);
+    unsigned char b = 2;
+    printf("%d", (int)b);
 }
