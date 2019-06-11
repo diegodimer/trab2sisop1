@@ -7,11 +7,13 @@
 
 typedef struct
 {
-    DWORD   proxBloco;     /* Variável para o próximo bloco ocupado por essa entrada */
     DWORD   nBlocosSist;   /* Varíavel com o número de blocos no sistema */
-    char    name[231];      /* Nome do arquivo cuja entrada foi lida do disco      */
-    DWORD   fileSize;       /* Numero de bytes do arquivo */
-    DWORD  *dirFilhos;
+    char    name[256];     /* PATH ABSOLUTO DO DIRETÓRIO */
+    BYTE    fileType;      /* Tipo do arquivo: regular (0x01) ou diretório (0x02) */
+    DWORD   fileSize;      /* Numero de bytes do arquivo */
+    DWORD  *dirFilhos;     /* LISTA DE DIRETÓRIOS FILHOS */
+    int     numFilhos;
+	int		bloco_livre;
 } ROOTDIR;
 
 typedef struct
@@ -26,14 +28,14 @@ typedef struct
 
 int main( int argc, char *argv[])
 {
-    //format2(8);
+    format2(8);
 
-    mkdir2("/a/BECE");
-//    mkdir2("/a/c/e");
-//    mkdir2("/a/c/d");
-//    mkdir2("/diego");
-//    mkdir2("/b/cu");
-//    mkdir2("/b/cu2");
+    mkdir2("/a");
+    mkdir2("/a/c/e");
+    mkdir2("/a/c/d");
+    mkdir2("/diego");
+    mkdir2("/b/cu");
+    mkdir2("/b/cu2");
 
     printf("-----lendo bloco------\n");
     unsigned char *buffer =  NULL;

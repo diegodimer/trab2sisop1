@@ -27,12 +27,12 @@ typedef struct
 
 typedef struct
 {
+    DWORD   nBlocosSist;   /* Varíavel com o número de blocos no sistema */
     char    name[256];     /* PATH ABSOLUTO DO DIRETÓRIO */
     BYTE    fileType;      /* Tipo do arquivo: regular (0x01) ou diretório (0x02) */
     DWORD   fileSize;      /* Numero de bytes do arquivo */
     DWORD  *dirFilhos;     /* LISTA DE DIRETÓRIOS FILHOS */
     int     numFilhos;
-    DWORD   nBlocosSist;   /* Varíavel com o número de blocos no sistema */
 	int		bloco_livre;
 } ROOTDIR;
 
@@ -68,6 +68,13 @@ int init()
     inicializado = 1;
     buffer = readBlock(1);
 
+    if(setoresPorBloco == 2){
+         char conteudo_ultimo[] = {buffer[0],buffer[1],buffer[2],buffer[3]};
+        int *stblk = (int *)conteudo_ultimo;
+        printf("----%d\n", *stblk);
+        setoresPorBloco = *stblk;
+        buffer = readBlock(1);
+    }
     if(buffer == NULL){
         return ERRO_LEITURA;
     }
@@ -109,13 +116,16 @@ int init()
             printf("Diretório raiz lido com sucesso!\n");
             printf("Root directory name: %s\n", rootDirectory.name);
         }
+        printf("AAAAAA1\n");
         setoresPorBloco = rootDirectory.nBlocosSist;
         bloco_livre = rootDirectory.bloco_livre;
+        printf("AAAAAA2\n");
     }
 
 
-
+    printf("AAAAAA3\n");
     free(buffer);
+    printf("AAAAAA4\n");
     return 0;
 }
 
@@ -391,13 +401,11 @@ int mkdir2 (char *pathname)
     {
         init();
     }
-
     if(pathname[0] != '/' || strlen(pathname) < 2) // o caminho é sempre absoluto, então se não entrou / no início não tá tentando acessar diretório raiz
     {
         printf("pathname incorreto, uso: /path_to_dir\n");
         return INVALID_PATH;
     };
-
     // novo diretório
     DIRENT3 novoDiretorio;
     int blocoNovoDiretorio;
@@ -411,7 +419,6 @@ int mkdir2 (char *pathname)
 
     DWORD *filhosDir = NULL;
     filhosDir = rootDirectory.dirFilhos; // filhos do diretório raiz
-
     int encontrado;
     unsigned char *buffer = NULL;
     int n=0;
@@ -420,6 +427,7 @@ int mkdir2 (char *pathname)
 // primeiro faço a busca do primeiro token no diretório raiz. Fiz separado pq é diferente o jeito que lida com os blocos
     while(rootDirectory.numFilhos > n && encontrado == 0)  // procuro nos filhos do diretório raiz o filho dir
     {
+
 
         buffer = readBlock(filhosDir[n]);
         dirAuxiliar = (DIRENT3 *) buffer;
