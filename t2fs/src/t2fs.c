@@ -14,6 +14,8 @@
 #define ARQ_REGULAR 0x01
 #define ARQ_DIRETORIO 0x02
 
+#define MAX_DIR_OPEN 3
+
 typedef struct
 {
     WORD  version;          /* Versão do trabalho */
@@ -55,17 +57,22 @@ int bloco_livre =0;
 
 
 // Funções auxiliares
-int writeBlock(unsigned char *, DWORD);
-unsigned char* readBlock(DWORD);
-int aloca_bloco();
-void libera_bloco(int );
-int init();
-DIRENT3 *lookForDir(char*);
+int writeBlock(unsigned char *, DWORD); // função que escreve em um bloco
+unsigned char* readBlock(DWORD); // função que lê um bloco e retorna um ponteiro para esse bloco
+int aloca_bloco(); // função que aloca um bloco
+void libera_bloco(int ); // função que desaloca um bloco (preenche com 0s)
+int init(); // função que inicia o sistema (preenche variaveis necessárias para execução
+DIRENT3 *lookForDir(char*); // função que procura um diretório (não deve ser chamada por usuários)
 
 // variáveis relativas ao current path
 char *currentPath=NULL;
 DIRENT3 *currentDir;
 int raiz; // se está no diretório raiz
+
+
+DIRENT3 *openDirectories[MAX_DIR_OPEN];
+int dirIndex;
+
 
 // inicializa o sistema (preenche o diretório raiz, se não tiver cria. Supoem que o disco está formatado (variavel setoresporbloco preenchida)
 int init()
@@ -85,7 +92,7 @@ int init()
     {
         return ERRO_LEITURA;
     }
-     int quantos_filhos =(256 * setoresPorBloco) - 265 - 3;
+    int quantos_filhos =(256 * setoresPorBloco) - 265 - 3;
 
     rootDirectory = malloc(sizeof(*rootDirectory)+quantos_filhos);
     rootDirectory = (ROOTDIR *) buffer;
@@ -133,6 +140,11 @@ int init()
 
     }
 
+    dirIndex=0;
+    int i=0;
+    for(i=0; i<MAX_DIR_OPEN; i++)
+        openDirectories[i]=NULL;
+
     return 0;
 }
 
@@ -168,10 +180,7 @@ int writeBlock(unsigned char *data, DWORD firstSector)
 // le um bloco da memória
 unsigned char* readBlock(DWORD firstSector)
 {
-    if(!inicializado)
-    {
-        init();
-    }
+
     if(firstSector<1)
     {
         return NULL; // se quer o bloco 0 ou negativo, não existe (começa em 1 o número de blocos)
@@ -411,8 +420,9 @@ int mkdir2 (char *pathname)
 
     if(!inicializado)
     {
-        init();
-    }
+        if(init()!=0)
+            return ERRO_LEITURA;
+    };
 
 
     if(pathname[0] != '/' || strlen(pathname) < 2) // o caminho é sempre absoluto, então se não entrou / no início não tá tentando acessar diretório raiz
@@ -447,7 +457,7 @@ int mkdir2 (char *pathname)
 
 
         // comparar o diretório que estou (novodiretorio) com o que quero criar
-        if(!strcmp(novoDiretorio->name, dir))
+        if(!strcmp(novoDiretorio->name, dir) && novoDiretorio->fileType == ARQ_DIRETORIO)
         {
             // se eles forem iguais encontrei
             encontrado = 1;
@@ -531,7 +541,7 @@ int mkdir2 (char *pathname)
             buffer = readBlock(novoDiretorio->dirFilhos[m]);
             dirAuxiliar = (DIRENT3 *) buffer;
             // compara o dirAuxiliar com o que estou procurando
-            if(!strcmp(dirAuxiliar->name, dir))
+            if(!strcmp(dirAuxiliar->name, dir) && dirAuxiliar->fileType == ARQ_DIRETORIO)
             {
                 if(debug == 1)
                 {
@@ -617,12 +627,14 @@ int chdir2 (char *pathname)
 
     if(!inicializado)
     {
-        init();
-    }
+        if(init()!=0)
+            return ERRO_LEITURA;
+    };
     if(!pathname || strcmp(pathname, "/") == 0) // só cd no linux leva pro diretório raiz
     {
-        if(debug==1){
-        printf("Ir para o dir. raiz\n");
+        if(debug==1)
+        {
+            printf("Ir para o dir. raiz\n");
         }
         free(currentPath);
         currentPath = malloc(sizeof(char)*2);
@@ -682,7 +694,33 @@ Função:	Função que abre um diretório existente no disco.
 -----------------------------------------------------------------------------*/
 DIR2 opendir2 (char *pathname)
 {
-    return -1;
+    if(!inicializado)
+    {
+        init();
+    }
+    if(dirIndex >= MAX_DIR_OPEN)
+    {
+        printf("muitos diretorios abertos\n");
+        return -1;
+    }
+    DIRENT3 *dirToOpen = lookForDir(pathname);
+
+    if(dirToOpen == NULL)
+    {
+        return -1;
+    }
+    else
+    {
+        if(dirToOpen->fileType == ARQ_DIRETORIO)
+        {
+            openDirectories[dirIndex] = dirToOpen;
+            printf("Opened file %s\n", openDirectories[dirIndex]->name);
+            dirIndex++;
+        }
+
+        return 0;
+    }
+
 }
 
 /*-----------------------------------------------------------------------------
@@ -690,7 +728,22 @@ Função:	Função usada para ler as entradas de um diretório.
 -----------------------------------------------------------------------------*/
 int readdir2 (DIR2 handle, DIRENT2 *dentry)
 {
-    return -1;
+        if(!inicializado)
+    {
+        init();
+    }
+
+    if(openDirectories[handle] != NULL)
+    {
+        dentry->fileSize = sizeof(DIRENT2) + openDirectories[handle]->numFilhos;
+        dentry->fileType = openDirectories[handle]->fileType;
+        strcpy(dentry->name, openDirectories[handle]->name);
+        return 0;
+    }
+    else
+    {
+        return -1;
+    }
 }
 
 /*-----------------------------------------------------------------------------
@@ -698,7 +751,18 @@ Função:	Função usada para fechar um diretório.
 -----------------------------------------------------------------------------*/
 int closedir2 (DIR2 handle)
 {
-    return -1;
+        if(!inicializado)
+    {
+        init();
+    }
+    if(openDirectories[handle] != NULL)
+    {
+        printf("Closed file %s\n", openDirectories[handle]->name);
+        free(openDirectories[handle]);
+        openDirectories[handle] = NULL;
+        dirIndex--;
+    }
+    return 0;
 }
 
 /*-----------------------------------------------------------------------------
