@@ -29,11 +29,28 @@ typedef struct
 int main( int argc, char *argv[])
 {
     char path[100];
-
-    format2(8);
-    while(1){
-    gets(path);
-    mkdir2(path);
+    char path2[100];
+    int b,c;
+   // format2(8);
+    while(1)
+    {
+        printf("Path: ");
+        fflush(stdin);
+        scanf(" %s", path);
+        printf("0: cria 1: procura");
+        scanf("%d",&c);
+        if (c==0)
+        {
+            b=mkdir2(path);
+            printf("ret: %d\n",b);
+        }
+        else
+        {
+            getcwd2(path2, 100);
+            puts(path2);
+            if(lookForDir(path) == NULL)
+                printf("Not found\n");;
+        }
     }
 
     return 0;

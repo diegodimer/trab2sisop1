@@ -48,7 +48,7 @@ typedef struct
 
 ROOTDIR *rootDirectory;
 int inicializado = 0;
-int debug = 0;
+int debug = 1;
 DWORD setoresPorBloco=2;
 int bloco_livre =0;
 
@@ -85,24 +85,26 @@ int init()
     {
         return ERRO_LEITURA;
     }
-    ROOTDIR *dir;
-    dir = calloc(setoresPorBloco*SECTOR_SIZE, sizeof(BYTE));
-    dir = (ROOTDIR *) buffer;
+     int quantos_filhos =(256 * setoresPorBloco) - 265 - 3;
 
-    if(strcmp(dir->name, "root")!=0)
+    rootDirectory = malloc(sizeof(*rootDirectory)+quantos_filhos);
+    rootDirectory = (ROOTDIR *) buffer;
+
+    if(strcmp(rootDirectory->name, "root")!=0)
     {
         if(debug == 1)
         {
             printf("Nao tem diretorio raiz\n");
             printf("Criando diretório raiz...\n");
         }
+
+        free(rootDirectory);
         // criação do diretório raiz
-        rootDirectory = malloc(sizeof(*rootDirectory)+sizeof(DWORD));
+        rootDirectory = malloc(sizeof(*rootDirectory)+quantos_filhos);
         strcpy(rootDirectory->name, "root");
-        rootDirectory->fileSize    = sizeof(ROOTDIR);
+        rootDirectory->fileSize    = sizeof(*rootDirectory)+quantos_filhos;
         rootDirectory->fileType    = ARQ_DIRETORIO;
         rootDirectory->nBlocosSist = setoresPorBloco;
-        rootDirectory->dirFilhos[0]= -1;
         rootDirectory->numFilhos   = 0;
         rootDirectory->bloco_livre = bloco_livre;
 
@@ -119,7 +121,7 @@ int init()
     }
     else
     {
-        rootDirectory = dir;
+
         if(debug == 1)
         {
             printf("Diretorio raiz lido com sucesso!\n");
@@ -430,19 +432,19 @@ int mkdir2 (char *pathname)
     DIRENT3 *novoSubDiretorio = NULL;
     DIRENT3 *dirAuxiliar = NULL;
 
+    int quantos_filhos =(256 * setoresPorBloco) - 265 - 3; // quantos filhos cada diretório pode ter
     unsigned char *buffer = NULL;
 
-
     int m=0;
-
     int n=0;
     int encontrado = 0;
+
     while(rootDirectory->numFilhos > n && encontrado == 0)  // procuro nos filhos do diretório raiz o filho dir
     {
-
-        novoDiretorioBloco = *(rootDirectory->dirFilhos+n); // o bloco onde o novoDiretorio está é no diretório raiz
+        novoDiretorioBloco = rootDirectory->dirFilhos[n]; // o bloco onde o novoDiretorio está é no diretório raiz
         buffer = readBlock(novoDiretorioBloco);
         novoDiretorio = (DIRENT3 *)buffer;
+
 
         // comparar o diretório que estou (novodiretorio) com o que quero criar
         if(!strcmp(novoDiretorio->name, dir))
@@ -465,12 +467,6 @@ int mkdir2 (char *pathname)
     // se o diretório raiz tem 0 filhos ou eu não encontrei, preciso criar dentro do diretório raiz o dir
     if(encontrado == 0)
     {
-
-        // se não tem espaço pra novos diretórios só retorna
-        if(rootDirectory->fileSize + sizeof(DWORD) >= setoresPorBloco*SECTOR_SIZE)
-        {
-            return -1;
-        }
         novoDiretorioBloco = aloca_bloco();
         // se não tem filhos no raiz, criar um
         if(novoDiretorioBloco == 0)
@@ -487,23 +483,23 @@ int mkdir2 (char *pathname)
         // se o diretório raiz ja tem o tamanho de um bloco em bytes não pode alocar mais um diretório
 
         // preencho os dados do novo diretório
-        novoDiretorio = malloc(sizeof(*novoDiretorio)+sizeof(DWORD));
+        novoDiretorio = malloc(sizeof(*novoDiretorio)+quantos_filhos);
         novoDiretorio->dirFilhos[0] = -1;
-        novoDiretorio->fileSize     = sizeof(*novoDiretorio)+sizeof(DWORD);
+        novoDiretorio->fileSize     = sizeof(*novoDiretorio)+quantos_filhos;
         novoDiretorio->fileType     = ARQ_DIRETORIO;
         novoDiretorio->numFilhos    = 0;
         novoDiretorio->setorDados   = LAST_BLOCK;
         strcpy(novoDiretorio->name, dir);
 
         // atualizo o diretório raiz
-        if(rootDirectory->numFilhos==0)  // se não tem filhos ja tá alocado a memória pra um filho
+        if(rootDirectory->numFilhos >= (quantos_filhos/2))  // se não tem filhos ja tá alocado a memória pra um filho
         {
+            printf("max de filhos atingido!\n");
             rootDirectory->dirFilhos[0] = novoDiretorioBloco;
         }
         else
         {
-            rootDirectory = realloc( rootDirectory, rootDirectory->fileSize + sizeof(DWORD)); // se tem mais de um realoco memória
-            rootDirectory->dirFilhos[rootDirectory->numFilhos] = novoDiretorioBloco; // e salvo o novo bloco
+            rootDirectory->dirFilhos[rootDirectory->numFilhos] = novoDiretorioBloco;
         }
         rootDirectory->numFilhos = rootDirectory->numFilhos + 1; // atualizo o número de filhos
 
@@ -522,11 +518,14 @@ int mkdir2 (char *pathname)
     m=0;
     while(dir != NULL) // enquanto ainda tiver subdiretórios
     {
+        encontrado = 0;
+        m=0;
         // procurar em novoDiretorio a entrada com nome dir
         // se encontrar -> ela é novoDiretorio
         // se não encontrar -> criar ela e ela é novoDiretorio
         while(m < novoDiretorio->numFilhos && encontrado == 0)  // itera por todos os filhos do novo dirretório ou até encontrar
         {
+            printf("iterando pelos filhos de %s\n", novoDiretorio->name);
             //procurar em novoDiretorio os filhos até achar algum com nome de dir
             // le o bloco
             buffer = readBlock(novoDiretorio->dirFilhos[m]);
@@ -540,8 +539,8 @@ int mkdir2 (char *pathname)
                 }
                 encontrado = 1;
                 // se for igual encontrei
+                novoDiretorioBloco = novoDiretorio->dirFilhos[m];
                 novoDiretorio = dirAuxiliar;
-                novoDiretorioBloco = *(novoDiretorio->dirFilhos+m);
                 // ele é o novoDiretorio, para procurar o proxímo token nele
             }
             else
@@ -560,14 +559,15 @@ int mkdir2 (char *pathname)
             {
                 return -1;
             }
-            if( (novoDiretorio->fileSize + sizeof(DWORD) ) > (setoresPorBloco * SECTOR_SIZE) )
+            if( novoDiretorio->numFilhos  >= (quantos_filhos/2 ))
             {
+                printf("max de filhos atingido!\n");
                 return -2; // não tem mais espaço para diretórios filhos retorna erro
             }
 
 
-            novoSubDiretorio = malloc( sizeof(*novoSubDiretorio) + sizeof(DWORD));
-            novoSubDiretorio->fileSize     = sizeof(*novoSubDiretorio) + sizeof(DWORD);
+            novoSubDiretorio = malloc( sizeof(*novoSubDiretorio) + quantos_filhos);
+            novoSubDiretorio->fileSize     = sizeof(*novoSubDiretorio) + quantos_filhos;
             novoSubDiretorio->fileType     = ARQ_DIRETORIO;
             novoSubDiretorio->numFilhos    = 0;
             novoSubDiretorio->setorDados   = LAST_BLOCK;
@@ -577,15 +577,7 @@ int mkdir2 (char *pathname)
             // criar em novoDiretorio a entrada dir
             // e faz de dir o novoDiretorio
 
-            if(novoDiretorio->numFilhos == 0)
-            {
-                novoDiretorio->dirFilhos[0] = novoSubDiretorioBloco;
-            }
-            else
-            {
-                novoDiretorio = realloc(novoDiretorio, novoDiretorio->fileSize + sizeof(DWORD)); // realoca a memória para caber mais uma DWORD
-                novoDiretorio->dirFilhos[novoDiretorio->numFilhos] = novoSubDiretorioBloco;
-            }
+            novoDiretorio->dirFilhos[novoDiretorio->numFilhos] = novoSubDiretorioBloco;
             novoDiretorio->numFilhos = novoDiretorio->numFilhos + 1;
 
             if(!writeBlock((unsigned char *)novoDiretorio, novoDiretorioBloco)) // salvo o diretório raiz na memória
@@ -595,7 +587,7 @@ int mkdir2 (char *pathname)
                     printf("Diretorio %s criado com sucesso!\n%s eh subdiretorio de %s\n", novoSubDiretorio->name, novoSubDiretorio->name, novoDiretorio->name);
                 }
             }
-            novoDiretorio = novoSubDiretorio;
+            *novoDiretorio = *novoSubDiretorio;
             novoDiretorioBloco = novoSubDiretorioBloco;
         }
 
@@ -603,15 +595,10 @@ int mkdir2 (char *pathname)
         encontrado = 0;
     }
 
-
-
     free(buffer);
     return 0;
 
 }
-
-
-
 
 
 /*-----------------------------------------------------------------------------
@@ -634,7 +621,9 @@ int chdir2 (char *pathname)
     }
     if(!pathname || strcmp(pathname, "/") == 0) // só cd no linux leva pro diretório raiz
     {
+        if(debug==1){
         printf("Ir para o dir. raiz\n");
+        }
         free(currentPath);
         currentPath = malloc(sizeof(char)*2);
         strcpy(currentPath, "/");
@@ -644,7 +633,8 @@ int chdir2 (char *pathname)
 
     int sucesso = 0;
     DIRENT3 *pathDir = lookForDir(pathname);
-    printf("CURRENT PATH NO DIRETORIO %s\n", pathDir->name);
+    if(debug)
+        printf("CURRENT PATH NO DIRETORIO %s\n", pathDir->name);
 
     if(pathDir==NULL)
     {
@@ -723,8 +713,6 @@ int ln2 (char *linkname, char *filename)
 
 DIRENT3 *lookForDir(char* path)
 {
-
-
     if(path[0] != '/') // o caminho é sempre absoluto, então se não entrou / no início não tá tentando acessar diretório raiz
     {
         printf("pathname incorreto, uso: /path_to_dir\n");
