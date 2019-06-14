@@ -50,7 +50,7 @@ typedef struct
 
 ROOTDIR *rootDirectory;
 int inicializado = 0;
-int debug = 1;
+int debug = 0;
 DWORD setoresPorBloco=2;
 int bloco_livre =0;
 
@@ -62,8 +62,8 @@ unsigned char* readBlock(DWORD); // função que lê um bloco e retorna um ponteiro
 int aloca_bloco(); // função que aloca um bloco
 void libera_bloco(int ); // função que desaloca um bloco (preenche com 0s)
 int init(); // função que inicia o sistema (preenche variaveis necessárias para execução
-DIRENT3 *lookForDir(char*); // função que procura um diretório (não deve ser chamada por usuários)
-
+DIRENT3 *lookForDir(char*, DWORD*); // função que procura um diretório (não deve ser chamada por usuários)
+void listBlocks(DIRENT3*, DWORD **, int *); // caminha recursivamente no grafo listando o bloco dos filhos de um diretorio
 // variáveis relativas ao current path
 char *currentPath=NULL;
 DIRENT3 *currentDir;
@@ -265,6 +265,8 @@ void libera_bloco(int id_bloco)
         printf("erro ao liberar bloco ! \n");
     else
         rootDirectory->bloco_livre = id_bloco;
+
+    writeBlock((unsigned char*)rootDirectory, 1);
 }
 
 
@@ -505,7 +507,7 @@ int mkdir2 (char *pathname)
         if(rootDirectory->numFilhos >= (quantos_filhos/2))  // se não tem filhos ja tá alocado a memória pra um filho
         {
             printf("max de filhos atingido!\n");
-            rootDirectory->dirFilhos[0] = novoDiretorioBloco;
+            return -1;
         }
         else
         {
@@ -518,7 +520,10 @@ int mkdir2 (char *pathname)
         {
             if(!writeBlock((unsigned char*)novoDiretorio, novoDiretorioBloco)) // salvo o novo diretorio na memória
             {
-                printf("Diretorio %s criado com sucesso!\n", dir);
+                if(debug)
+                    printf("Diretorio %s criado com sucesso no bloco %d!\n", dir, novoDiretorioBloco);
+                else
+                    printf("Diretorio %s criado com sucesso.\n", dir);
             }
         }
     }
@@ -535,7 +540,8 @@ int mkdir2 (char *pathname)
         // se não encontrar -> criar ela e ela é novoDiretorio
         while(m < novoDiretorio->numFilhos && encontrado == 0)  // itera por todos os filhos do novo dirretório ou até encontrar
         {
-            printf("iterando pelos filhos de %s\n", novoDiretorio->name);
+            if(debug)
+                printf("iterando pelos filhos de %s\n", novoDiretorio->name);
             //procurar em novoDiretorio os filhos até achar algum com nome de dir
             // le o bloco
             buffer = readBlock(novoDiretorio->dirFilhos[m]);
@@ -594,7 +600,10 @@ int mkdir2 (char *pathname)
             {
                 if(!writeBlock((unsigned char*)novoSubDiretorio, novoSubDiretorioBloco)) // salvo o novo diretorio na memória
                 {
-                    printf("Diretorio %s criado com sucesso!\n%s eh subdiretorio de %s\n", novoSubDiretorio->name, novoSubDiretorio->name, novoDiretorio->name);
+                    if (debug)
+                        printf("Diretorio %s criado com sucesso!\n%s eh subdiretorio de %s e esta no bloco %d\n", novoSubDiretorio->name, novoSubDiretorio->name, novoDiretorio->name, novoSubDiretorioBloco);
+                    else
+                        printf("Diretorio %s criado com sucesso.", novoSubDiretorio->name);
                 }
             }
             *novoDiretorio = *novoSubDiretorio;
@@ -616,7 +625,153 @@ Função:	Função usada para remover (apagar) um diretório do disco.
 -----------------------------------------------------------------------------*/
 int rmdir2 (char *pathname)
 {
-    return -1;
+    if(!inicializado)
+    {
+        init();
+    }
+    char *string = strdup(pathname); // pra caso dê problema com a string antes
+
+    DWORD block;
+    DIRENT3 *toBeRemoved = lookForDir(pathname, &block); // procura diretório a ser removido
+    if(toBeRemoved == NULL)
+    {
+        printf("Diretorio nao encontrado!\n");
+        return -1;
+    }
+    DWORD *blocksToErase = NULL; // lista de blocos que precisam ser desalocados
+    int count = 1;
+    if(debug)
+        printf("about to remove dir %s on block %d", toBeRemoved->name, block);
+    int i;
+
+    listBlocks(toBeRemoved, &blocksToErase, &count);
+
+    if(count == 1)
+    {
+        blocksToErase = malloc(sizeof(DWORD)); // se nao tem filhos poem só ele na lista
+    }
+
+    blocksToErase[count-1] = block;
+
+    for(i=0; i<count; i++)
+    {
+        if(debug)
+            printf("%d\n", blocksToErase[i]);
+        libera_bloco(blocksToErase[i]); // libera o bloco
+
+    }
+
+//     decrementa 1 do numero de filhos do diretorio pai
+    char *str = strtok(string, "/");
+    char *straux = str;
+    char *newPath = malloc(strlen(string));
+    newPath[0] = '/';
+    newPath[1] = '\0';
+    int encontrado=0;
+    while(!encontrado)
+    {
+        straux = strtok(NULL,"/");
+
+        if(straux== NULL)
+        {
+            if(debug)
+                printf("\n ->>> %s\n", newPath);
+            encontrado=1;
+        }
+        else
+        {
+
+            strcat(newPath, str);
+            strcat(newPath, "/");
+            str = straux;
+
+        }
+
+
+    }
+
+    int indexToRemove;
+    if(strcmp(newPath, "/")==0)
+    {
+        if(debug)
+            printf("Filho do dir. raiz!\n");
+
+        // encontra nos filhos diretório raiz o index do bloco que vai ser tirado e desloca o array todo uma posição atrás dele
+        for(i=0; i!= -1 ; i++)
+        {
+            if(rootDirectory->dirFilhos[i] == block)
+            {
+                indexToRemove = i;
+                i=-2;
+            }
+        }
+        for(i=indexToRemove; i<rootDirectory->numFilhos; i++)
+        {
+            rootDirectory->dirFilhos[i] = rootDirectory->dirFilhos[i+1];
+        }
+        rootDirectory->numFilhos = rootDirectory->numFilhos-1;
+        // atualiza o diretorio raiz no disco
+        writeBlock((unsigned char*)rootDirectory, 1);
+    }
+    else
+    {
+        DWORD blocoPai;
+        DIRENT3 *pai = lookForDir(newPath, &blocoPai);
+        if(debug)
+            printf("pai: %s\n", pai->name);
+
+        // encontra nos filhos diretório pai o index do bloco que vai ser tirado e desloca o array todo uma posição atrás dele
+        for(i=0; i!= -1 ; i++)
+        {
+            if(pai->dirFilhos[i] == block)
+            {
+                indexToRemove = i;
+                i=-2;
+            }
+        }
+        for(i=indexToRemove; i<pai->numFilhos; i++)
+        {
+            pai->dirFilhos[i] = pai->dirFilhos[i+1];
+        }
+        pai->numFilhos = pai->numFilhos-1;
+        //atualiza o pai no disco
+        writeBlock((unsigned char*)pai, blocoPai);
+    }
+    return 0;
+}
+
+void listBlocks(DIRENT3* alvo, DWORD **list, int *count)
+{
+    // pra cada diretório que entra nessa função eu listo os filhos dele e chamo recursivamente essa função para listar os filhos dele
+    // fazendo percurso no grafo
+    int i=0;
+    if(debug)
+        printf("LISTANDO FILHOS DE %s\n", alvo->name);
+
+    for(i=0; i<alvo->numFilhos; i++) // pra cada diretório filho desse diretório
+    {
+        DWORD* biggerList = NULL;
+        biggerList = (DWORD*) realloc (*list, *count * sizeof(DWORD)); // realoco a lista para caber mais o elemento que preciso
+
+        if (biggerList!=NULL) // se consegui realocar
+        {
+            *list=biggerList; // atualizo a lista
+            *(*list+*count-1)=alvo->dirFilhos[i]; // adiciono o bloco do diretorio filho na lista
+            unsigned char *buffer = readBlock(alvo->dirFilhos[i]);
+            DIRENT3 *filho = (DIRENT3 *)buffer;
+
+            *count = *count + 1;
+            listBlocks(filho, list, count); // leio o diretório filho e chamo a função para ele
+
+        }
+        else
+        {
+            free (*list);
+            puts ("Error (re)allocating memory\n");
+            exit (1);
+        }
+    }
+
 }
 
 /*-----------------------------------------------------------------------------
@@ -644,7 +799,7 @@ int chdir2 (char *pathname)
     }
 
     int sucesso = 0;
-    DIRENT3 *pathDir = lookForDir(pathname);
+    DIRENT3 *pathDir = lookForDir(pathname, NULL);
     if(debug)
         printf("CURRENT PATH NO DIRETORIO %s\n", pathDir->name);
 
@@ -694,31 +849,49 @@ Função:	Função que abre um diretório existente no disco.
 -----------------------------------------------------------------------------*/
 DIR2 opendir2 (char *pathname)
 {
+    int handle;
+
     if(!inicializado)
     {
         init();
     }
     if(dirIndex >= MAX_DIR_OPEN)
     {
-        printf("muitos diretorios abertos\n");
+        printf("Nao pode abrir mais diretorios. Feche algum aberto!\n");
         return -1;
     }
-    DIRENT3 *dirToOpen = lookForDir(pathname);
+    DIRENT3 *dirToOpen = lookForDir(pathname, NULL);
 
     if(dirToOpen == NULL)
     {
+        printf("Diretorio nao encontrado.\n");
         return -1;
     }
     else
     {
         if(dirToOpen->fileType == ARQ_DIRETORIO)
         {
-            openDirectories[dirIndex] = dirToOpen;
-            printf("Opened file %s\n", openDirectories[dirIndex]->name);
+            int i;
+            for(i=0; i<MAX_DIR_OPEN; i++)
+            {
+                if(openDirectories[i] == NULL)
+                {
+                    handle = i;
+                    i=MAX_DIR_OPEN;
+                }
+            }
+            openDirectories[handle] = dirToOpen;
+            if(debug)
+            {
+                printf("Abriu diretorio %s\n", openDirectories[handle]->name);
+            }
             dirIndex++;
+        } else {
+            printf("Arquivo nao eh do tipo diretorio!\n");
+            return -2;
         }
 
-        return 0;
+        return handle;
     }
 
 }
@@ -728,7 +901,7 @@ Função:	Função usada para ler as entradas de um diretório.
 -----------------------------------------------------------------------------*/
 int readdir2 (DIR2 handle, DIRENT2 *dentry)
 {
-        if(!inicializado)
+    if(!inicializado)
     {
         init();
     }
@@ -751,7 +924,7 @@ Função:	Função usada para fechar um diretório.
 -----------------------------------------------------------------------------*/
 int closedir2 (DIR2 handle)
 {
-        if(!inicializado)
+    if(!inicializado)
     {
         init();
     }
@@ -775,7 +948,7 @@ int ln2 (char *linkname, char *filename)
     return -1;
 }
 
-DIRENT3 *lookForDir(char* path)
+DIRENT3 *lookForDir(char* path, DWORD* bloco)
 {
     if(path[0] != '/') // o caminho é sempre absoluto, então se não entrou / no início não tá tentando acessar diretório raiz
     {
@@ -851,12 +1024,13 @@ DIRENT3 *lookForDir(char* path)
                 {
                     if(debug == 1)
                     {
-                        printf("Encontrado %s como subdiretorio de %s\n", dir, novoDiretorio->name);
+                        printf("Encontrado %s como subdiretorio de %s no bloco %d\n", dir, novoDiretorio->name, novoDiretorio->dirFilhos[m]);
                     }
+
+                    novoDiretorioBloco = novoDiretorio->dirFilhos[m];
                     encontrado = 1;
                     // se for igual encontrei
                     novoDiretorio = dirAuxiliar;
-                    novoDiretorioBloco = *(novoDiretorio->dirFilhos+m);
                     // ele é o novoDiretorio, para procurar o proxímo token nele
                 }
                 else
@@ -880,7 +1054,8 @@ DIRENT3 *lookForDir(char* path)
             dir = strtok(NULL, "/");
             encontrado = 0;
         }
-
+        if(bloco!=NULL)
+            *bloco = novoDiretorioBloco;
         return novoDiretorio;
     }
 }
