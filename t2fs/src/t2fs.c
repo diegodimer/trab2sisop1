@@ -48,6 +48,11 @@ typedef struct
     DWORD   dirFilhos[];     /* LISTA DE DIRETÓRIOS FILHOS */
 } DIRENT3;
 
+FILE2 handle_global=0;
+//array com ponteiros para arquivos abertos atualmente no sistema
+DIRENT3 arquivos_abertos[10];
+
+
 ROOTDIR *rootDirectory;
 int inicializado = 0;
 int debug = 0;
@@ -350,8 +355,43 @@ Função:	Função usada para criar um novo arquivo no disco e abrí-lo,
 -----------------------------------------------------------------------------*/
 FILE2 create2 (char *filename)
 {
-    // o caminho é absoluto, então filename vem desde o root até onde é, eu entro no root, vejo se
-    return -1;
+	if(size(*filename)>31){
+		printf("\n nome deve ter entre 0 e 31 caracteres! \n");
+		return -1;
+	}
+	if(handle_global>=10){
+		printf(" Ja existem 10 arquivos abertos! \n");
+		return -2;
+	}
+	
+	//parte da função que remove um arquivo com o mesmo nome do disco
+	
+	
+	
+    //parte da função que o nome do arquivo é adicionado ao current directory
+	//
+	//
+	
+	int bloconovo = aloca_bloco();
+	
+	DIRENT3 novoarquivo;
+	novoarquivo.name=*filename;
+	novoarquivo.fileType = 0x01;
+	novoarquivo.fileSize=0;
+	novoarquivo->dirFilhos = NULL;
+	//PARA ARQUIVOS REGULARES, NUMFILHOS INDICA O CURRENT POINTER DO ARQUIVO
+	novoarquivo.numfilhos = 0;
+	novoarquivo.setorDados = bloconovo +1;
+	
+	write_sector(bloconovo,novoarquivo);
+	
+	
+	//coloca um ponteiro para a dirent3 desse arquivo no array dos arquivos abertos
+	arquivos_abertos[handle_global]=novoarquivo;
+	//atualiza o valor do handle global
+	handle_global +=1;	
+	
+    return (handle_global-1);
 }
 
 /*-----------------------------------------------------------------------------
@@ -383,8 +423,98 @@ Função:	Função usada para realizar a leitura de uma certa quantidade
 		de bytes (size) de um arquivo.
 -----------------------------------------------------------------------------*/
 int read2 (FILE2 handle, char *buffer, int size)
-{
-    return -1;
+{	
+	//ESSA FUNÇÃO SUPÕE QUE ARQUIVOS TERMINEM COM '\0'
+
+	DIRENT3 arquivoatual = arquivos_abertos[handle];
+	
+	//-1 porque o primeiro setor esta sendo ocupado pelo header do arquivo
+	DWORD primeirobloco = arquivoatual.setorDados -1;
+	
+	//numfilhos armazena o contador atual do programa
+	int contador = arquivoatual.numFilhos;
+	
+	int setores_por_bloco = rootDirectory.nBlocosSist;
+	
+	int tamanho = arquivoatual.fileSize;
+	
+	//tirar todo o arquivo da memoria
+	unsigned char buffer_reader[SECTOR_SIZE]={0};
+	
+	int tamanho_arredondado=0;
+	while(tamanho>0){
+		tamanho = tamanho -254;
+		tamanho_arredondado += 254;
+	}
+	
+	unsigned char *arquivo_lido;
+	arquivo_lido = malloc(tamanho_arredondado);
+	
+	int i;
+	int j;
+	int k=0;
+	//le os 254 bytes de cada setor do primeiro bloco
+	for(i=1;i<setores_por_bloco;i++){
+		
+		if(read_sector(primeirobloco+i,buffer_reader)!=0){
+			printf("\n erro ao ler setor %d \n",primeirobloco+i);
+			return -1;
+		}
+		
+		//poe o conteudo lido em arquivo_lido
+		for(j=0;j<254;j++){
+			arquivo_lido[k] = buffer_reader[j];
+			k++;
+		}
+		
+		tamanho_arredondado = tamanho_arredondado - 254;
+		if(tamanho_arredondado==0)
+			break;
+	}
+	
+	read_sector(primeirobloco+setores_por_bloco-1,buffer_reader);
+	
+	int numero_do_setor = buffer_reader[256]<<8 | buffer_reader[255];
+	
+	//le o resto do arquivo
+	while(tamanho_arrendondado!=0){
+		
+		//vai lendo blocos
+		for(i=0;i<setores_por_bloco;i++){
+			
+			if(read_sector(numero_do_setor+i,buffer_reader)!=0){
+				printf("\n erro ao ler setor %d \n",numerodosetor+i);
+				return -1;
+			}
+			for(j=0;j<254;j++){
+				arquivo_lido[k] = buffer_reader[j];
+				k++;
+			}
+			tamanho_arredondado = tamanho_arredondado - 254;
+			if(tamanho_arredondado==0)
+				break;
+			
+		}
+		read_sector(numero_do_setor+i,buffer_reader);
+		numero_do_setor = buffer_reader[256]<<8 | buffer_reader[255];
+		
+	}
+	
+	
+	//agr vem o pulo do gato
+	//só truncar a string de acordo com os bytes indicados no contador
+	*buffer = arquivo_lido + contador;
+	strncpy(buffer, buffer, size);
+	if(arquivoatual.fileSize-contador<size){
+		//contador chegou ao final do arquivo
+		arquivoatual.numFilhos = arquivoatual.fileSize +1;
+		return (arquivoatual.fileSize-contador);		
+	}
+	else {
+		//atualiza o contador
+		arquivoatual.numFilhos = contador+size+1;
+		return size;
+	}
 }
 
 /*-----------------------------------------------------------------------------
@@ -392,8 +522,188 @@ Função:	Função usada para realizar a escrita de uma certa quantidade
 		de bytes (size) de  um arquivo.
 -----------------------------------------------------------------------------*/
 int write2 (FILE2 handle, char *buffer, int size)
-{
-    return -1;
+{	
+	//ESSA FUNÇÃO SUPÕE QUE O "SIZE" NÃO INCLUA O \0 DO FINAL
+
+	DIRENT3 arquivoatual = arquivos_abertos[handle];
+	
+	//-1 porque o primeiro setor esta sendo ocupado pelo header do arquivo
+	DWORD primeirobloco = arquivoatual.setorDados -1;
+	
+	//numfilhos armazena o contador atual do programa
+	int contador = arquivoatual.numFilhos;
+	
+	int setores_por_bloco = rootDirectory.nBlocosSist;
+	
+	int tamanho = arquivoatual.fileSize;
+	
+	//tirar todo o arquivo da memoria
+	unsigned char buffer_reader[SECTOR_SIZE]={0};
+	
+	int tamanho_arredondado=0;
+	while(tamanho>0){
+		tamanho = tamanho -254;
+		tamanho_arredondado += 254;
+	}
+	
+	unsigned char *arquivo_lido;
+	arquivo_lido = malloc(tamanho_arredondado);
+	
+	int i;
+	int j;
+	int k=0;
+	//le os 254 bytes de cada setor do primeiro bloco
+	for(i=1;i<setores_por_bloco;i++){
+		
+		if(read_sector(primeirobloco+i,buffer_reader)!=0){
+			printf("\n erro ao ler setor %d \n",primeirobloco+i);
+			return -1;
+		}
+		
+		//poe o conteudo lido em arquivo_lido
+		for(j=0;j<254;j++){
+			arquivo_lido[k] = buffer_reader[j];
+			k++;
+		}
+		
+		tamanho_arredondado = tamanho_arredondado - 254;
+		if(tamanho_arredondado==0)
+			break;
+	}
+	
+	read_sector(primeirobloco+setores_por_bloco-1,buffer_reader);
+	
+	int numero_do_setor = buffer_reader[256]<<8 | buffer_reader[255];
+	
+	//le o resto do arquivo
+	while(tamanho_arrendondado!=0){
+		
+		//vai lendo blocos
+		for(i=0;i<setores_por_bloco;i++){
+			
+			if(read_sector(numero_do_setor+i,buffer_reader)!=0){
+				printf("\n erro ao ler setor %d \n",numerodosetor+i);
+				return -1;
+			}
+			for(j=0;j<254;j++){
+				arquivo_lido[k] = buffer_reader[j];
+				k++;
+			}
+			tamanho_arredondado = tamanho_arredondado - 254;
+			if(tamanho_arredondado==0)
+				break;
+			
+		}
+		read_sector(numero_do_setor+i,buffer_reader);
+		numero_do_setor = buffer_reader[256]<<8 | buffer_reader[255];
+		
+	}
+	
+	//escrever o conteudo novo
+	for(i=0;i<=size;i++){
+		arquivo_lido[contador+i] = buffer[i];
+		
+	}
+	//se adicionou conteúdo no fim do arquivo poe \0 no final
+	if(contador+size>arquivoatual.fileSize)
+	{	
+		arquivoatual.fileSize = contador+size;
+		arquivo_lido[contador+size+1]='\0';
+	}
+	
+	
+	//grava de novo o arquivo
+	
+	unsigned char buffer_writer[SECTOR_SIZE];
+	k=0;
+	for(i=1;i<setores_por_bloco;i++){
+		
+		//testa se esta no ultimo setor do primeiro bloco
+		if(i=setores_por_bloco-1){
+			if(read_sector(primeirobloco+setores_por_bloco-1,buffer_reader)!=0){
+				printf("\n erro ao pegar endereço do proximo bloco no setor %d \n",numerodosetor+i);
+				return -1;
+			}
+			numero_do_setor = buffer_reader[256]<<8 | buffer_reader[255];
+			if(numero_do_setor==0){
+				numero_do_setor = aloca_bloco();
+			}
+			buffer_writer[256]=(numero_do_setor>>8);
+			buffer_writer[255]=numero_do_setor;
+			
+		}
+		else{
+			buffer_writer[256]=0;
+			buffer_writer[255]=0;
+		}
+		
+		//poe o conteudo lido em arquivo_lido
+		for(j=0;j<254;j++){
+			buffer_writer[j]=arquivo_lido[k];
+			k++;
+		}
+		
+		
+		if(write_sector(primeirobloco+i,buffer_writer)!=0){
+			printf("\n erro ao escrever setor %d \n",primeirobloco+i);
+			return -1;
+		}
+		
+		
+		
+	}
+	int tamanho_novo = arquivoatual.fileSize;
+	int numero_auxiliar;
+	while(tamanho_novo>0){
+		
+		//vai escrevendo blocos
+		for(i=0;i<setores_por_bloco;i++){
+			
+			//testa se esta no ultimo setor do bloco
+			if(i=setores_por_bloco-1){
+				if(read_sector(numero_do_setor+setores_por_bloco-1,buffer_reader)!=0){
+					printf("\n erro ao pegar endereço do proximo bloco no setor %d \n",numerodosetor+i);
+					return -1;
+				}
+				numero_auxiliar = buffer_reader[256]<<8 | buffer_reader[255];
+				if(numero_auxiliar==0){
+					numero_auxiliar = aloca_bloco();
+				}
+				buffer_writer[256]=(numero_auxiliar>>8);
+				buffer_writer[255]=numero_auxiliar;
+			
+			}
+			else{
+				buffer_writer[256]=0;
+				buffer_writer[255]=0;
+			}
+			
+			
+			for(j=0;j<254;j++){
+				buffer_writer[j]=arquivo_lido[k];
+				k++;
+			}
+			if(write_sector(numero_do_setor+i,buffer_writer)!=0){
+			printf("\n erro ao escrever setor %d \n",primeirobloco+i);
+			return -1;
+			}
+			
+			
+			if(i=setores_por_bloco-1)
+				numero_do_setor = numero_auxiliar;
+
+
+			tamanho_novo = tamanho_novo - 254;
+			if(tamanho_novo<=0)
+				break;
+			
+		}
+		
+	}	
+	
+
+	arquivoatual.numFilhos = contador+size+1;
+	return size;
 }
 
 /*-----------------------------------------------------------------------------
