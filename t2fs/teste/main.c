@@ -28,7 +28,37 @@ typedef struct
 
 int main( int argc, char *argv[])
 {
+    char path[100];
+    char path2[100];
+    int op;
+    DIRENT2 dir;
 
+
+    while(1)
+    {
+        printf("0- novo dir, 1- novo link, 2- abrir arq, 3- read dir: ");
+        scanf("%d", &op);
+        printf("path: ");
+        scanf(" %s", path);
+        if(op==0)
+            mkdir2(path);
+        else if (op == 1)
+        {
+            printf("Link de que dir? ");
+            scanf(" %s", path2);
+            ln2(path, path2);
+        }
+        else if(op == 2)
+        {
+            printf("handle: %d\n", opendir2(path));
+        } else if(op==3){
+            printf("handle: ");
+            scanf(" %d", &op);
+            readdir2(op, &dir);
+            printf("dir name: %s\n", dir.name);
+        }
+
+    }
 
 
     return 0;
