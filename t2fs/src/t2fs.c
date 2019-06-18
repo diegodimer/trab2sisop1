@@ -9,120 +9,124 @@
 
 #define INVALID_PATH -3
 
+#define ERRO_LEITURA_ARQUIVO -4
+#define ERRO_DEVERIA_FECHAR_ARQUIVO_NAO_DIRETORIO -5
+#define ERRO_ARQUIVO_NAO_FECHADO -6
+#define ERRO_EXCEDEU_LIMITE_ARQUIVOS_ABERTOS -7
+#define ERRO_ARQUIVO_NAO_ABERTO -8
+
+
 #define LAST_BLOCK 0
 
 #define ARQ_REGULAR 0x01
 #define ARQ_DIRETORIO 0x02
 #define ARQ_LINK 0x03
 #define MAX_DIR_OPEN 3
-
+#define MAX_OPEN_FILES 10
 typedef struct
 {
-    WORD  version;          /* Versão do trabalho */
-    WORD  sectorSize;       /* Tamanho do setor em Bytes */
-    WORD  tabelaParticoes;  /* Byte inicial da tabela de partições */
-    WORD  nParticoes;       /* Quantidade de partições no disco */
-    DWORD setorInicioP1;    /* endereço do bloco de início da partição 1 */
-    DWORD setorFimP1;       /* endereço do ultimo bloco da partição 1 */
-    BYTE  nome[25];         /* Nome da partição 1 */
+    WORD version;         /* Versï¿½o do trabalho */
+    WORD sectorSize;      /* Tamanho do setor em Bytes */
+    WORD tabelaParticoes; /* Byte inicial da tabela de partiï¿½ï¿½es */
+    WORD nParticoes;      /* Quantidade de partiï¿½ï¿½es no disco */
+    DWORD setorInicioP1;  /* endereï¿½o do bloco de inï¿½cio da partiï¿½ï¿½o 1 */
+    DWORD setorFimP1;     /* endereï¿½o do ultimo bloco da partiï¿½ï¿½o 1 */
+    BYTE nome[25];        /* Nome da partiï¿½ï¿½o 1 */
 } MBR;
 
 typedef struct
 {
-    DWORD   nBlocosSist;   /* Varíavel com o número de blocos no sistema */
-    char    name[256];     /* PATH ABSOLUTO DO DIRETÓRIO */
-    BYTE    fileType;      /* Tipo do arquivo: regular (0x01) ou diretório (0x02) */
-    DWORD   fileSize;      /* Numero de bytes do arquivo */
-    int		bloco_livre;
-    int     numFilhos;
-    DWORD   dirFilhos[];     /* LISTA DE DIRETÓRIOS FILHOS */
+    DWORD nBlocosSist; /* Varï¿½avel com o nï¿½mero de blocos no sistema */
+    char name[256];    /* PATH ABSOLUTO DO DIRETï¿½RIO */
+    BYTE fileType;     /* Tipo do arquivo: regular (0x01) ou diretï¿½rio (0x02) */
+    DWORD fileSize;    /* Numero de bytes do arquivo */
+    int bloco_livre;
+    int numFilhos;
+    DWORD dirFilhos[]; /* LISTA DE DIRETï¿½RIOS FILHOS */
 } ROOTDIR;
 
 typedef struct
 {
-    char    name[256];     /* PATH ABSOLUTO DO DIRETÓRIO */
-    BYTE    fileType;      /* Tipo do arquivo: regular (0x01) ou diretório (0x02) */
-    DWORD   fileSize;      /* Numero de bytes do arquivo */
-    DWORD   setorDados;    /* PONTEIRO PARA O PRIMEIRO SETOR COM OS DADOS (ARQUIVO REGULAR) */
-    int     numFilhos;
-    DWORD   dirFilhos[];     /* LISTA DE DIRETÓRIOS FILHOS */
+    char name[256];   /* PATH ABSOLUTO DO DIRETï¿½RIO */
+    BYTE fileType;    /* Tipo do arquivo: regular (0x01) ou diretï¿½rio (0x02) */
+    DWORD fileSize;   /* Numero de bytes do arquivo */
+    DWORD setorDados; /* PONTEIRO PARA O PRIMEIRO SETOR COM OS DADOS (ARQUIVO REGULAR) */
+    int numFilhos;
+    DWORD dirFilhos[]; /* LISTA DE DIRETï¿½RIOS FILHOS */
 } DIRENT3;
 
-FILE2 handle_global=0;
+FILE2 handle_global = 0;
 //array com ponteiros para arquivos abertos atualmente no sistema
-DIRENT3 arquivos_abertos[10];
+DIRENT3 arquivos_abertos[MAX_OPEN_FILES];
 
+int total_arquivos_abertos = 0;
 
 ROOTDIR *rootDirectory;
 int inicializado = 0;
 int debug = 0;
-DWORD setoresPorBloco=2;
-int bloco_livre =0;
+DWORD setoresPorBloco = 2;
+int bloco_livre = 0;
 
-
-
-// Funções auxiliares
-int writeBlock(unsigned char *, DWORD); // função que escreve em um bloco
-unsigned char* readBlock(DWORD); // função que lê um bloco e retorna um ponteiro para esse bloco
-int aloca_bloco(); // função que aloca um bloco
-void libera_bloco(int ); // função que desaloca um bloco (preenche com 0s)
-int init(); // função que inicia o sistema (preenche variaveis necessárias para execução
-DIRENT3 *lookForDir(char*, DWORD*); // função que procura um diretório (não deve ser chamada por usuários)
-void listBlocks(DIRENT3*, DWORD **, int *); // caminha recursivamente no grafo listando o bloco dos filhos de um diretorio
-// variáveis relativas ao current path
-char *currentPath=NULL;
+// Funï¿½ï¿½es auxiliares
+int writeBlock(unsigned char *, DWORD);      // funï¿½ï¿½o que escreve em um bloco
+unsigned char *readBlock(DWORD);             // funï¿½ï¿½o que lï¿½ um bloco e retorna um ponteiro para esse bloco
+int aloca_bloco();                           // funï¿½ï¿½o que aloca um bloco
+void libera_bloco(int);                      // funï¿½ï¿½o que desaloca um bloco (preenche com 0s)
+int init();                                  // funï¿½ï¿½o que inicia o sistema (preenche variaveis necessï¿½rias para execuï¿½ï¿½o
+DIRENT3 *lookForDir(char *, DWORD *);        // funï¿½ï¿½o que procura um diretï¿½rio (nï¿½o deve ser chamada por usuï¿½rios)
+void listBlocks(DIRENT3 *, DWORD **, int *); // caminha recursivamente no grafo listando o bloco dos filhos de um diretorio
+// variï¿½veis relativas ao current path
+char *currentPath = NULL;
 DIRENT3 *currentDir;
-int raiz; // se está no diretório raiz
-
+int raiz; // se estï¿½ no diretï¿½rio raiz
 
 DIRENT3 *openDirectories[MAX_DIR_OPEN];
 int dirIndex;
 
-
-// inicializa o sistema (preenche o diretório raiz, se não tiver cria. Supoem que o disco está formatado (variavel setoresporbloco preenchida)
+// inicializa o sistema (preenche o diretï¿½rio raiz, se nï¿½o tiver cria. Supoem que o disco estï¿½ formatado (variavel setoresporbloco preenchida)
 int init()
 {
     unsigned char *buffer;
     inicializado = 1;
     buffer = readBlock(1);
 
-    if(setoresPorBloco == 2)
+    if (setoresPorBloco == 2)
     {
-        char conteudo_ultimo[] = {buffer[0],buffer[1],buffer[2],buffer[3]};
+        char conteudo_ultimo[] = {buffer[0], buffer[1], buffer[2], buffer[3]};
         int *stblk = (int *)conteudo_ultimo;
         setoresPorBloco = *stblk;
         buffer = readBlock(1);
     }
-    if(buffer == NULL)
+    if (buffer == NULL)
     {
         return ERRO_LEITURA;
     }
-    int quantos_filhos =(256 * setoresPorBloco) - 265 - 3;
+    int quantos_filhos = (256 * setoresPorBloco) - 265 - 3;
 
-    rootDirectory = malloc(sizeof(*rootDirectory)+quantos_filhos);
-    rootDirectory = (ROOTDIR *) buffer;
+    rootDirectory = malloc(sizeof(*rootDirectory) + quantos_filhos);
+    rootDirectory = (ROOTDIR *)buffer;
 
-    if(strcmp(rootDirectory->name, "root")!=0)
+    if (strcmp(rootDirectory->name, "root") != 0)
     {
-        if(debug == 1)
+        if (debug == 1)
         {
             printf("Nao tem diretorio raiz\n");
-            printf("Criando diretório raiz...\n");
+            printf("Criando diretï¿½rio raiz...\n");
         }
 
         free(rootDirectory);
-        // criação do diretório raiz
-        rootDirectory = malloc(sizeof(*rootDirectory)+quantos_filhos);
+        // criaï¿½ï¿½o do diretï¿½rio raiz
+        rootDirectory = malloc(sizeof(*rootDirectory) + quantos_filhos);
         strcpy(rootDirectory->name, "root");
-        rootDirectory->fileSize    = sizeof(*rootDirectory)+quantos_filhos;
-        rootDirectory->fileType    = ARQ_DIRETORIO;
+        rootDirectory->fileSize = sizeof(*rootDirectory) + quantos_filhos;
+        rootDirectory->fileType = ARQ_DIRETORIO;
         rootDirectory->nBlocosSist = setoresPorBloco;
-        rootDirectory->numFilhos   = 0;
+        rootDirectory->numFilhos = 0;
         rootDirectory->bloco_livre = bloco_livre;
 
-        if(!writeBlock((unsigned char*)rootDirectory, 1))
+        if (!writeBlock((unsigned char *)rootDirectory, 1))
         {
-            if(debug == 1)
+            if (debug == 1)
                 printf("Diretorio raiz criado com sucesso!\n");
         }
         else
@@ -134,7 +138,7 @@ int init()
     else
     {
 
-        if(debug == 1)
+        if (debug == 1)
         {
             printf("Diretorio raiz lido com sucesso!\n");
             printf("Root directory name: %s\n", rootDirectory->name);
@@ -142,71 +146,69 @@ int init()
 
         setoresPorBloco = rootDirectory->nBlocosSist;
         bloco_livre = rootDirectory->bloco_livre;
-
     }
 
-    dirIndex=0;
-    int i=0;
-    for(i=0; i<MAX_DIR_OPEN; i++)
-        openDirectories[i]=NULL;
+    dirIndex = 0;
+    int i = 0;
+    for (i = 0; i < MAX_DIR_OPEN; i++)
+        openDirectories[i] = NULL;
 
     return 0;
 }
 
-/** ESSA FUNÇÃO NÃO CUIDA SE PODE OU NÃO ESCREVER NO BLOCO, NEM A CORRETUDE (FIRSTSECTOR SENDO MULTIPLO DE 2)!
+/** ESSA FUNï¿½ï¿½O Nï¿½O CUIDA SE PODE OU Nï¿½O ESCREVER NO BLOCO, NEM A CORRETUDE (FIRSTSECTOR SENDO MULTIPLO DE 2)!
  ELA APENAS ESCREVE **/
-// escreve data no bloco que começa no setor firstSector
+// escreve data no bloco que comeï¿½a no setor firstSector
 int writeBlock(unsigned char *data, DWORD firstSector)
 {
     if (firstSector == -1)
         return -1;
-    if(!inicializado)
+    if (!inicializado)
     {
         init();
     }
     int index = 0;
-    int i,j;
+    int i, j;
     unsigned char aux[SECTOR_SIZE] = {0};
-    for(i=0; i<setoresPorBloco; i++) // pra cada setor
+    for (i = 0; i < setoresPorBloco; i++) // pra cada setor
     {
-        for(j=0; j<SECTOR_SIZE; j++)  // monta o aux com o tamanho do setor
+        for (j = 0; j < SECTOR_SIZE; j++) // monta o aux com o tamanho do setor
         {
-            aux[j] = data[index+j];
+            aux[j] = data[index + j];
         }
-        if(debug == 1)
-            printf("escrevendo no setor %d\n", firstSector+i);
-        index += SECTOR_SIZE; // pra começar de data um setor a frente sempre
-        write_sector( firstSector+i, aux );
-
+        if (debug == 1)
+            printf("escrevendo no setor %d\n", firstSector + i);
+        index += SECTOR_SIZE; // pra comeï¿½ar de data um setor a frente sempre
+        write_sector(firstSector + i, aux);
     }
     return 0;
 }
 
-// le um bloco da memória
-unsigned char* readBlock(DWORD firstSector)
+// le um bloco da memï¿½ria
+unsigned char *readBlock(DWORD firstSector)
 {
 
-    if(firstSector<1)
+    if (firstSector < 1)
     {
-        return NULL; // se quer o bloco 0 ou negativo, não existe (começa em 1 o número de blocos)
+        return NULL; // se quer o bloco 0 ou negativo, nï¿½o existe (comeï¿½a em 1 o nï¿½mero de blocos)
     }
 
-    unsigned char *buffer; // variável preenchida com o conteúdo do bloco
+    unsigned char *buffer; // variï¿½vel preenchida com o conteï¿½do do bloco
 
-    int tamanhoRetorno = (SECTOR_SIZE*setoresPorBloco); // bloco é setorsize*nsetoresporbloco
+    int tamanhoRetorno = (SECTOR_SIZE * setoresPorBloco); // bloco ï¿½ setorsize*nsetoresporbloco
     buffer = calloc(tamanhoRetorno, sizeof(unsigned char));
     int index = 0;
-    int i=0;
+    int i = 0;
     int j;
-    unsigned char* auxBuffer = malloc(SECTOR_SIZE);
-    while(i!=setoresPorBloco)
+    unsigned char *auxBuffer = malloc(SECTOR_SIZE);
+    while (i != setoresPorBloco)
     {
-        if(debug == 1)
+        if (debug == 1)
         {
-            printf("Lendo setor %d\n", firstSector+i);
+            printf("Lendo setor %d\n", firstSector + i);
         }
-        read_sector(firstSector+i, auxBuffer);
-        for(j=0; j<SECTOR_SIZE; j++)
+        read_sector(firstSector + i, auxBuffer);
+        for (j = 0; j < SECTOR_SIZE; j++)
         {
             buffer[index] = auxBuffer[j];
             index++;
@@ -217,18 +219,17 @@ unsigned char* readBlock(DWORD firstSector)
     return buffer;
 }
 
-
 /*-----------------------------------------------------------------------------
-Função:	Informa a identificação dos desenvolvedores do T2FS.
+Funï¿½ï¿½o:	Informa a identificaï¿½ï¿½o dos desenvolvedores do T2FS.
 -----------------------------------------------------------------------------*/
-int identify2 (char *name, int size)
+int identify2(char *name, int size)
 {
-    if(!inicializado)
+    if (!inicializado)
     {
-        if(init()!=0)
+        if (init() != 0)
             return ERRO_LEITURA;
     };
-    if(size>= strlen("Afonso, Diego, Eduardo"))
+    if (size >= strlen("Afonso, Diego, Eduardo"))
     {
         strcpy(name, "Afonso, Diego, Eduardo");
         return 1;
@@ -241,197 +242,258 @@ int identify2 (char *name, int size)
 int aloca_bloco()
 {
 
-    if(rootDirectory->bloco_livre==0)
+    if (rootDirectory->bloco_livre == 0)
     {
         printf("\n nao ha mais blocos disponiveis! \n");
         return 0;
     }
     unsigned char buffer[SECTOR_SIZE];
 
-    read_sector(rootDirectory->bloco_livre,buffer);
+    read_sector(rootDirectory->bloco_livre, buffer);
 
-    int novo_bloco_livre = buffer[1]<<8 | buffer[0];
+    int novo_bloco_livre = buffer[1] << 8 | buffer[0];
     int retorno = rootDirectory->bloco_livre;
     rootDirectory->bloco_livre = novo_bloco_livre;
 
-    writeBlock((unsigned char*)rootDirectory, 1);
+    writeBlock((unsigned char *)rootDirectory, 1);
     return retorno;
-
-
 }
-//libera um bloco ocupado, esse bloco se junta à linked list dos blocos livres
+//libera um bloco ocupado, esse bloco se junta ï¿½ linked list dos blocos livres
 void libera_bloco(int id_bloco)
 {
-    unsigned char vetor0[SECTOR_SIZE]= {0};
-    //salva o endereço do antigo bloco livre no bloco passado como parametro
-    vetor0[1] = (rootDirectory->bloco_livre>>8);
+    unsigned char vetor0[SECTOR_SIZE] = {0};
+    //salva o endereï¿½o do antigo bloco livre no bloco passado como parametro
+    vetor0[1] = (rootDirectory->bloco_livre >> 8);
     vetor0[0] = rootDirectory->bloco_livre;
-    if(write_sector(id_bloco,vetor0)!=0)
+    if (write_sector(id_bloco, vetor0) != 0)
         printf("erro ao liberar bloco ! \n");
     else
         rootDirectory->bloco_livre = id_bloco;
 
-    writeBlock((unsigned char*)rootDirectory, 1);
+    writeBlock((unsigned char *)rootDirectory, 1);
 }
 
-
 /*-----------------------------------------------------------------------------
-Função:	Formata logicamente o disco virtual t2fs_disk.dat para o sistema de
+Funï¿½ï¿½o:	Formata logicamente o disco virtual t2fs_disk.dat para o sistema de
 		arquivos T2FS definido usando blocos de dados de tamanho
-		corresponde a um múltiplo de setores dados por sectors_per_block.
+		corresponde a um mï¿½ltiplo de setores dados por sectors_per_block.
 -----------------------------------------------------------------------------*/
-int format2 (int sectors_per_block)
+int format2(int sectors_per_block)
 {
-    if(sectors_per_block < 2 || sectors_per_block % 2 != 0 || sectors_per_block >= 1024)
+    if (sectors_per_block < 2 || sectors_per_block % 2 != 0 || sectors_per_block >= 1024)
     {
         return -1;
     }
-    //lendo o endereço da partição a ser formatada e transformando de bytes para int
+    //lendo o endereï¿½o da partiï¿½ï¿½o a ser formatada e transformando de bytes para int
     unsigned char conteudo_mbr[SECTOR_SIZE];
-    if(read_sector(0,conteudo_mbr)!=0)
+    if (read_sector(0, conteudo_mbr) != 0)
         printf("\n erro ao ler mbr \n");
-    char conteudo_bytes[]= {conteudo_mbr[8],conteudo_mbr[9],conteudo_mbr[10],conteudo_mbr[11]};
+    char conteudo_bytes[] = {conteudo_mbr[8], conteudo_mbr[9], conteudo_mbr[10], conteudo_mbr[11]};
     int *end_part = (int *)conteudo_bytes;
 
-    //lendo o ultimo bloco lógico (setor) da partição a ser formatada e transformando de bytes para int
-    char conteudo_ultimo[] = {conteudo_mbr[12],conteudo_mbr[13],conteudo_mbr[14],conteudo_mbr[15]};
+    //lendo o ultimo bloco lï¿½gico (setor) da partiï¿½ï¿½o a ser formatada e transformando de bytes para int
+    char conteudo_ultimo[] = {conteudo_mbr[12], conteudo_mbr[13], conteudo_mbr[14], conteudo_mbr[15]};
     int *end_ultimosetor = (int *)conteudo_ultimo;
 
-    unsigned char vetorzeros[SECTOR_SIZE]= {0};
+    unsigned char vetorzeros[SECTOR_SIZE] = {0};
 
-    //escreve zeros em todos os setores da partição
+    //escreve zeros em todos os setores da partiï¿½ï¿½o
     int i;
-    for(i=*end_part; i<=*end_ultimosetor; i++)
+    for (i = *end_part; i <= *end_ultimosetor; i++)
     {
-        if(write_sector(i,vetorzeros)!=0)
+        if (write_sector(i, vetorzeros) != 0)
         {
-            printf("\n erro na formatação dos setores \n");
+            printf("\n erro na formataï¿½ï¿½o dos setores \n");
             return -2;
         }
     }
 
-    //escreve o endereço do próximo bloco livre nos 2 primeiros bytes de cada bloco
+    //escreve o endereï¿½o do prï¿½ximo bloco livre nos 2 primeiros bytes de cada bloco
 
-    for(i= *end_part; i<*end_ultimosetor-sectors_per_block; i=i+sectors_per_block)
+    for (i = *end_part; i < *end_ultimosetor - sectors_per_block; i = i + sectors_per_block)
     {
 
-        int prox_bloco= i + sectors_per_block;
-        vetorzeros[1]=(prox_bloco>>8);
-        vetorzeros[0]=prox_bloco;
+        int prox_bloco = i + sectors_per_block;
+        vetorzeros[1] = (prox_bloco >> 8);
+        vetorzeros[0] = prox_bloco;
         //printf(" it: %d numero sendo salvo %02x %02x \n",i,vetorzeros[0]&0xFF,vetorzeros[1]&0xFF);
         //char numint[2]={vetorzeros[0],vetorzeros[1]};
         //int gg = *(int *)numeroemint;
         //printf(" numero em int: %d \n",gg);
-        if(write_sector(i,vetorzeros)!=0)
+        if (write_sector(i, vetorzeros) != 0)
         {
-            printf("\n erro na formatação dos blocos livres\n");
+            printf("\n erro na formataï¿½ï¿½o dos blocos livres\n");
             return -3;
         }
-
     }
     //define a variavel global do inicio da linked list de blocos livres como o bloco 2
     bloco_livre = *end_part + sectors_per_block;
     setoresPorBloco = sectors_per_block;
-    inicializado=0;
+    inicializado = 0;
     init();
 
-
-    //!!!!!!!!!!!!!!!!!!!!!ATENÇÃO!!!!!!!!!!!!!!!!!!!!!
+    //!!!!!!!!!!!!!!!!!!!!!ATENï¿½ï¿½O!!!!!!!!!!!!!!!!!!!!!
     //UNICO COMANDO QUE TRANSFORMA OS BYTES DO ARQUIVO EM INT CORRETAMENTE:
     // int numero_do_setor = buffer[1]<<8 | buffer[0];
 
-    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ATENÇÃO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    //!!!!!!!!!!!!FOI DEFINIDO ARBITRARIAMENTE QUE UM PONTEIRO PARA BLOCO LIVRE COM VALOR 0 SIGNIFICA QUE NÃO HÁ MAIS BLOCOS LIVRES DISPONIVEIS!!!!!!!!!!
+    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ATENï¿½ï¿½O!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    //!!!!!!!!!!!!FOI DEFINIDO ARBITRARIAMENTE QUE UM PONTEIRO PARA BLOCO LIVRE COM VALOR 0 SIGNIFICA QUE Nï¿½O Hï¿½ MAIS BLOCOS LIVRES DISPONIVEIS!!!!!!!!!!
 
     return 0;
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para criar um novo arquivo no disco e abrí-lo,
-		sendo, nesse último aspecto, equivalente a função open2.
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para criar um novo arquivo no disco e abrï¿½-lo,
+		sendo, nesse ï¿½ltimo aspecto, equivalente a funï¿½ï¿½o open2.
 		No entanto, diferentemente da open2, se filename referenciar um
-		arquivo já existente, o mesmo terá seu conteúdo removido e
-		assumirá um tamanho de zero bytes.
+		arquivo jï¿½ existente, o mesmo terï¿½ seu conteï¿½do removido e
+		assumirï¿½ um tamanho de zero bytes.
 -----------------------------------------------------------------------------*/
-FILE2 create2 (char *filename)
+FILE2 create2(char *filename)
 {
-    if(size(*filename)>31)
+    if (size(*filename) > 31)
     {
         printf("\n nome deve ter entre 0 e 31 caracteres! \n");
         return -1;
     }
-    if(handle_global>=10)
+    if (handle_global >= 10)
     {
         printf(" Ja existem 10 arquivos abertos! \n");
         return -2;
     }
 
-    //parte da função que remove um arquivo com o mesmo nome do disco
+    //parte da funï¿½ï¿½o que remove um arquivo com o mesmo nome do disco
 
-
-
-    //parte da função que o nome do arquivo é adicionado ao current directory
+    //parte da funï¿½ï¿½o que o nome do arquivo ï¿½ adicionado ao current directory
     //
     //
 
     int bloconovo = aloca_bloco();
 
     DIRENT3 novoarquivo;
-    novoarquivo.name=*filename;
+    novoarquivo.name = *filename;
     novoarquivo.fileType = 0x01;
-    novoarquivo.fileSize=0;
+    novoarquivo.fileSize = 0;
     novoarquivo->dirFilhos = NULL;
     //PARA ARQUIVOS REGULARES, NUMFILHOS INDICA O CURRENT POINTER DO ARQUIVO
     novoarquivo.numfilhos = 0;
-    novoarquivo.setorDados = bloconovo +1;
+    novoarquivo.setorDados = bloconovo + 1;
 
-    write_sector(bloconovo,novoarquivo);
-
+    write_sector(bloconovo, novoarquivo);
 
     //coloca um ponteiro para a dirent3 desse arquivo no array dos arquivos abertos
-    arquivos_abertos[handle_global]=novoarquivo;
+    arquivos_abertos[handle_global] = novoarquivo;
     //atualiza o valor do handle global
-    handle_global +=1;
+    handle_global += 1;
 
-    return (handle_global-1);
+    return (handle_global - 1);
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para remover (apagar) um arquivo do disco.
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para remover (apagar) um arquivo do disco.
 -----------------------------------------------------------------------------*/
-int delete2 (char *filename)
+int delete2(char *filename)
 {
     return -1;
 }
 
+/*pinto***********************************/
 /*-----------------------------------------------------------------------------
-Função:	Função que abre um arquivo existente no disco.
+Funï¿½ï¿½o:	Funï¿½ï¿½o que abre um arquivo existente no disco.
 -----------------------------------------------------------------------------*/
-FILE2 open2 (char *filename)
+FILE2 open2(char *filename) {
+    if (!inicializado)
+    {
+        init();
+    
+    }
+
+    if(total_arquivos_abertos >= MAX_OPEN_FILES)
+    {
+        return ERRO_EXCEDEU_LIMITE_ARQUIVOS_ABERTOS;
+    }
+
+
+    DIRENT3 *arquivo_pra_abrir = lookForDir(filename, NULL);
+    int handle; 
+
+    if (arquivo_pra_abrir == NULL)
+    {
+        printf("Arquivo Nao encontrrado nao encontrado.\n");
+        return -1;
+    }
+
+     if (arquivo_pra_abrir->fileType == ARQ_REGULAR)
+        {
+            int i;
+            for (i = 0; i < MAX_OPEN_FILES; i++)
+            {
+                if (arquivos_abertos[i] == NULL)
+                {
+                    handle = i;
+                    i = MAX_DIR_OPEN;
+                }
+            }
+            arquivos_abertos[handle] = arquivo_pra_abrir;
+            if (debug)
+            {
+                printf("Abriu arquivo %s\n", openDirectories[handle]->name);
+            }
+            dirIndex++;
+        }
+        else
+        {
+            printf("Arquivo nao eh do tipo arquivo!\n");
+            return -2;
+        }
+}
+
+
+/*-----------------------------------------------------------------------------
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para fechar um arquivo.
+-----------------------------------------------------------------------------*/
+int close2(FILE2 handle)
 {
-    return -1;
+    if (!inicializado)
+    {
+        init();
+    }
+
+    if (arquivos_abertos[handle]->filetype == 1)
+    {
+        return ERRO_DEVERIA_FECHAR_ARQUIVO_NAO_DIRETORIO;
+    }
+
+    else
+    {
+        int i;
+        for(i = 0; i < MAX_OPEN_FILES; i++)
+        {
+            if(arquivos_abertos[i] == handle)
+            {
+                free(arquivos_abertos[handle]);
+                arquivos_abertos[handle] = 0;
+                total_arquivos_abertos--;
+                return 0;
+            }
+        }
+        
+        return ERRO_ARQUIVO_NAO_ABERTO;
+    }
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para fechar um arquivo.
------------------------------------------------------------------------------*/
-int close2 (FILE2 handle)
-{
-    return -1;
-}
-
-/*-----------------------------------------------------------------------------
-Função:	Função usada para realizar a leitura de uma certa quantidade
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para realizar a leitura de uma certa quantidade
 		de bytes (size) de um arquivo.
 -----------------------------------------------------------------------------*/
-int read2 (FILE2 handle, char *buffer, int size)
+int read2(FILE2 handle, char *buffer, int size)
 {
-    //ESSA FUNÇÃO SUPÕE QUE ARQUIVOS TERMINEM COM '\0'
+    //ESSA FUNï¿½ï¿½O SUPï¿½E QUE ARQUIVOS TERMINEM COM '\0'
 
     DIRENT3 arquivoatual = arquivos_abertos[handle];
 
     //-1 porque o primeiro setor esta sendo ocupado pelo header do arquivo
-    DWORD primeirobloco = arquivoatual.setorDados -1;
+    DWORD primeirobloco = arquivoatual.setorDados - 1;
 
     //numfilhos armazena o contador atual do programa
     int contador = arquivoatual.numFilhos;
@@ -441,12 +503,12 @@ int read2 (FILE2 handle, char *buffer, int size)
     int tamanho = arquivoatual.fileSize;
 
     //tirar todo o arquivo da memoria
-    unsigned char buffer_reader[SECTOR_SIZE]= {0};
+    unsigned char buffer_reader[SECTOR_SIZE] = {0};
 
-    int tamanho_arredondado=0;
-    while(tamanho>0)
+    int tamanho_arredondado = 0;
+    while (tamanho > 0)
     {
-        tamanho = tamanho -254;
+        tamanho = tamanho - 254;
         tamanho_arredondado += 254;
     }
 
@@ -455,92 +517,89 @@ int read2 (FILE2 handle, char *buffer, int size)
 
     int i;
     int j;
-    int k=0;
+    int k = 0;
     //le os 254 bytes de cada setor do primeiro bloco
-    for(i=1; i<setores_por_bloco; i++)
+    for (i = 1; i < setores_por_bloco; i++)
     {
 
-        if(read_sector(primeirobloco+i,buffer_reader)!=0)
+        if (read_sector(primeirobloco + i, buffer_reader) != 0)
         {
-            printf("\n erro ao ler setor %d \n",primeirobloco+i);
+            printf("\n erro ao ler setor %d \n", primeirobloco + i);
             return -1;
         }
 
         //poe o conteudo lido em arquivo_lido
-        for(j=0; j<254; j++)
+        for (j = 0; j < 254; j++)
         {
             arquivo_lido[k] = buffer_reader[j];
             k++;
         }
 
         tamanho_arredondado = tamanho_arredondado - 254;
-        if(tamanho_arredondado==0)
+        if (tamanho_arredondado == 0)
             break;
     }
 
-    read_sector(primeirobloco+setores_por_bloco-1,buffer_reader);
+    read_sector(primeirobloco + setores_por_bloco - 1, buffer_reader);
 
-    int numero_do_setor = buffer_reader[256]<<8 | buffer_reader[255];
+    int numero_do_setor = buffer_reader[256] << 8 | buffer_reader[255];
 
     //le o resto do arquivo
-    while(tamanho_arrendondado!=0)
+    while (tamanho_arrendondado != 0)
     {
 
         //vai lendo blocos
-        for(i=0; i<setores_por_bloco; i++)
+        for (i = 0; i < setores_por_bloco; i++)
         {
 
-            if(read_sector(numero_do_setor+i,buffer_reader)!=0)
+            if (read_sector(numero_do_setor + i, buffer_reader) != 0)
             {
-                printf("\n erro ao ler setor %d \n",numerodosetor+i);
+                printf("\n erro ao ler setor %d \n", numerodosetor + i);
                 return -1;
             }
-            for(j=0; j<254; j++)
+            for (j = 0; j < 254; j++)
             {
                 arquivo_lido[k] = buffer_reader[j];
                 k++;
             }
             tamanho_arredondado = tamanho_arredondado - 254;
-            if(tamanho_arredondado==0)
+            if (tamanho_arredondado == 0)
                 break;
-
         }
-        read_sector(numero_do_setor+i,buffer_reader);
-        numero_do_setor = buffer_reader[256]<<8 | buffer_reader[255];
-
+        read_sector(numero_do_setor + i, buffer_reader);
+        numero_do_setor = buffer_reader[256] << 8 | buffer_reader[255];
     }
 
-
     //agr vem o pulo do gato
-    //só truncar a string de acordo com os bytes indicados no contador
+    //sï¿½ truncar a string de acordo com os bytes indicados no contador
     *buffer = arquivo_lido + contador;
     strncpy(buffer, buffer, size);
-    if(arquivoatual.fileSize-contador<size)
+    if (arquivoatual.fileSize - contador < size)
     {
         //contador chegou ao final do arquivo
-        arquivoatual.numFilhos = arquivoatual.fileSize +1;
-        return (arquivoatual.fileSize-contador);
+        arquivoatual.numFilhos = arquivoatual.fileSize + 1;
+        return (arquivoatual.fileSize - contador);
     }
     else
     {
         //atualiza o contador
-        arquivoatual.numFilhos = contador+size+1;
+        arquivoatual.numFilhos = contador + size + 1;
         return size;
     }
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para realizar a escrita de uma certa quantidade
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para realizar a escrita de uma certa quantidade
 		de bytes (size) de  um arquivo.
 -----------------------------------------------------------------------------*/
-int write2 (FILE2 handle, char *buffer, int size)
+int write2(FILE2 handle, char *buffer, int size)
 {
-    //ESSA FUNÇÃO SUPÕE QUE O "SIZE" NÃO INCLUA O \0 DO FINAL
+    //ESSA FUNï¿½ï¿½O SUPï¿½E QUE O "SIZE" Nï¿½O INCLUA O \0 DO FINAL
 
     DIRENT3 arquivoatual = arquivos_abertos[handle];
 
     //-1 porque o primeiro setor esta sendo ocupado pelo header do arquivo
-    DWORD primeirobloco = arquivoatual.setorDados -1;
+    DWORD primeirobloco = arquivoatual.setorDados - 1;
 
     //numfilhos armazena o contador atual do programa
     int contador = arquivoatual.numFilhos;
@@ -550,12 +609,12 @@ int write2 (FILE2 handle, char *buffer, int size)
     int tamanho = arquivoatual.fileSize;
 
     //tirar todo o arquivo da memoria
-    unsigned char buffer_reader[SECTOR_SIZE]= {0};
+    unsigned char buffer_reader[SECTOR_SIZE] = {0};
 
-    int tamanho_arredondado=0;
-    while(tamanho>0)
+    int tamanho_arredondado = 0;
+    while (tamanho > 0)
     {
-        tamanho = tamanho -254;
+        tamanho = tamanho - 254;
         tamanho_arredondado += 254;
     }
 
@@ -564,252 +623,234 @@ int write2 (FILE2 handle, char *buffer, int size)
 
     int i;
     int j;
-    int k=0;
+    int k = 0;
     //le os 254 bytes de cada setor do primeiro bloco
-    for(i=1; i<setores_por_bloco; i++)
+    for (i = 1; i < setores_por_bloco; i++)
     {
 
-        if(read_sector(primeirobloco+i,buffer_reader)!=0)
+        if (read_sector(primeirobloco + i, buffer_reader) != 0)
         {
-            printf("\n erro ao ler setor %d \n",primeirobloco+i);
+            printf("\n erro ao ler setor %d \n", primeirobloco + i);
             return -1;
         }
 
         //poe o conteudo lido em arquivo_lido
-        for(j=0; j<254; j++)
+        for (j = 0; j < 254; j++)
         {
             arquivo_lido[k] = buffer_reader[j];
             k++;
         }
 
         tamanho_arredondado = tamanho_arredondado - 254;
-        if(tamanho_arredondado==0)
+        if (tamanho_arredondado == 0)
             break;
     }
 
-    read_sector(primeirobloco+setores_por_bloco-1,buffer_reader);
+    read_sector(primeirobloco + setores_por_bloco - 1, buffer_reader);
 
-    int numero_do_setor = buffer_reader[256]<<8 | buffer_reader[255];
+    int numero_do_setor = buffer_reader[256] << 8 | buffer_reader[255];
 
     //le o resto do arquivo
-    while(tamanho_arrendondado!=0)
+    while (tamanho_arrendondado != 0)
     {
 
         //vai lendo blocos
-        for(i=0; i<setores_por_bloco; i++)
+        for (i = 0; i < setores_por_bloco; i++)
         {
 
-            if(read_sector(numero_do_setor+i,buffer_reader)!=0)
+            if (read_sector(numero_do_setor + i, buffer_reader) != 0)
             {
-                printf("\n erro ao ler setor %d \n",numerodosetor+i);
+                printf("\n erro ao ler setor %d \n", numerodosetor + i);
                 return -1;
             }
-            for(j=0; j<254; j++)
+            for (j = 0; j < 254; j++)
             {
                 arquivo_lido[k] = buffer_reader[j];
                 k++;
             }
             tamanho_arredondado = tamanho_arredondado - 254;
-            if(tamanho_arredondado==0)
+            if (tamanho_arredondado == 0)
                 break;
-
         }
-        read_sector(numero_do_setor+i,buffer_reader);
-        numero_do_setor = buffer_reader[256]<<8 | buffer_reader[255];
-
+        read_sector(numero_do_setor + i, buffer_reader);
+        numero_do_setor = buffer_reader[256] << 8 | buffer_reader[255];
     }
 
     //escrever o conteudo novo
-    for(i=0; i<=size; i++)
+    for (i = 0; i <= size; i++)
     {
-        arquivo_lido[contador+i] = buffer[i];
-
+        arquivo_lido[contador + i] = buffer[i];
     }
-    //se adicionou conteúdo no fim do arquivo poe \0 no final
-    if(contador+size>arquivoatual.fileSize)
+    //se adicionou conteï¿½do no fim do arquivo poe \0 no final
+    if (contador + size > arquivoatual.fileSize)
     {
-        arquivoatual.fileSize = contador+size;
-        arquivo_lido[contador+size+1]='\0';
+        arquivoatual.fileSize = contador + size;
+        arquivo_lido[contador + size + 1] = '\0';
     }
-
 
     //grava de novo o arquivo
 
     unsigned char buffer_writer[SECTOR_SIZE];
-    k=0;
-    for(i=1; i<setores_por_bloco; i++)
+    k = 0;
+    for (i = 1; i < setores_por_bloco; i++)
     {
 
         //testa se esta no ultimo setor do primeiro bloco
-        if(i=setores_por_bloco-1)
+        if (i = setores_por_bloco - 1)
         {
-            if(read_sector(primeirobloco+setores_por_bloco-1,buffer_reader)!=0)
+            if (read_sector(primeirobloco + setores_por_bloco - 1, buffer_reader) != 0)
             {
-                printf("\n erro ao pegar endereço do proximo bloco no setor %d \n",numerodosetor+i);
+                printf("\n erro ao pegar endereï¿½o do proximo bloco no setor %d \n", numerodosetor + i);
                 return -1;
             }
-            numero_do_setor = buffer_reader[256]<<8 | buffer_reader[255];
-            if(numero_do_setor==0)
+            numero_do_setor = buffer_reader[256] << 8 | buffer_reader[255];
+            if (numero_do_setor == 0)
             {
                 numero_do_setor = aloca_bloco();
             }
-            buffer_writer[256]=(numero_do_setor>>8);
-            buffer_writer[255]=numero_do_setor;
-
+            buffer_writer[256] = (numero_do_setor >> 8);
+            buffer_writer[255] = numero_do_setor;
         }
         else
         {
-            buffer_writer[256]=0;
-            buffer_writer[255]=0;
+            buffer_writer[256] = 0;
+            buffer_writer[255] = 0;
         }
 
         //poe o conteudo lido em arquivo_lido
-        for(j=0; j<254; j++)
+        for (j = 0; j < 254; j++)
         {
-            buffer_writer[j]=arquivo_lido[k];
+            buffer_writer[j] = arquivo_lido[k];
             k++;
         }
 
-
-        if(write_sector(primeirobloco+i,buffer_writer)!=0)
+        if (write_sector(primeirobloco + i, buffer_writer) != 0)
         {
-            printf("\n erro ao escrever setor %d \n",primeirobloco+i);
+            printf("\n erro ao escrever setor %d \n", primeirobloco + i);
             return -1;
         }
-
-
-
     }
     int tamanho_novo = arquivoatual.fileSize;
     int numero_auxiliar;
-    while(tamanho_novo>0)
+    while (tamanho_novo > 0)
     {
 
         //vai escrevendo blocos
-        for(i=0; i<setores_por_bloco; i++)
+        for (i = 0; i < setores_por_bloco; i++)
         {
 
             //testa se esta no ultimo setor do bloco
-            if(i=setores_por_bloco-1)
+            if (i = setores_por_bloco - 1)
             {
-                if(read_sector(numero_do_setor+setores_por_bloco-1,buffer_reader)!=0)
+                if (read_sector(numero_do_setor + setores_por_bloco - 1, buffer_reader) != 0)
                 {
-                    printf("\n erro ao pegar endereço do proximo bloco no setor %d \n",numerodosetor+i);
+                    printf("\n erro ao pegar endereï¿½o do proximo bloco no setor %d \n", numerodosetor + i);
                     return -1;
                 }
-                numero_auxiliar = buffer_reader[256]<<8 | buffer_reader[255];
-                if(numero_auxiliar==0)
+                numero_auxiliar = buffer_reader[256] << 8 | buffer_reader[255];
+                if (numero_auxiliar == 0)
                 {
                     numero_auxiliar = aloca_bloco();
                 }
-                buffer_writer[256]=(numero_auxiliar>>8);
-                buffer_writer[255]=numero_auxiliar;
-
+                buffer_writer[256] = (numero_auxiliar >> 8);
+                buffer_writer[255] = numero_auxiliar;
             }
             else
             {
-                buffer_writer[256]=0;
-                buffer_writer[255]=0;
+                buffer_writer[256] = 0;
+                buffer_writer[255] = 0;
             }
 
-
-            for(j=0; j<254; j++)
+            for (j = 0; j < 254; j++)
             {
-                buffer_writer[j]=arquivo_lido[k];
+                buffer_writer[j] = arquivo_lido[k];
                 k++;
             }
-            if(write_sector(numero_do_setor+i,buffer_writer)!=0)
+            if (write_sector(numero_do_setor + i, buffer_writer) != 0)
             {
-                printf("\n erro ao escrever setor %d \n",primeirobloco+i);
+                printf("\n erro ao escrever setor %d \n", primeirobloco + i);
                 return -1;
             }
 
-
-            if(i=setores_por_bloco-1)
+            if (i = setores_por_bloco - 1)
                 numero_do_setor = numero_auxiliar;
 
-
             tamanho_novo = tamanho_novo - 254;
-            if(tamanho_novo<=0)
+            if (tamanho_novo <= 0)
                 break;
-
         }
-
     }
 
-
-    arquivoatual.numFilhos = contador+size+1;
+    arquivoatual.numFilhos = contador + size + 1;
     return size;
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para truncar um arquivo. Remove do arquivo
-		todos os bytes a partir da posição atual do contador de posição
-		(current pointer), inclusive, até o seu final.
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para truncar um arquivo. Remove do arquivo
+		todos os bytes a partir da posiï¿½ï¿½o atual do contador de posiï¿½ï¿½o
+		(current pointer), inclusive, atï¿½ o seu final.
 -----------------------------------------------------------------------------*/
-int truncate2 (FILE2 handle)
+int truncate2(FILE2 handle)
 {
     return -1;
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Altera o contador de posição (current pointer) do arquivo.
+Funï¿½ï¿½o:	Altera o contador de posiï¿½ï¿½o (current pointer) do arquivo.
 -----------------------------------------------------------------------------*/
-int seek2 (FILE2 handle, DWORD offset)
+int seek2(FILE2 handle, DWORD offset)
 {
     return -1;
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para criar um novo diretório.
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para criar um novo diretï¿½rio.
 -----------------------------------------------------------------------------*/
-int mkdir2 (char *pathname)
+int mkdir2(char *pathname)
 {
 
-    if(!inicializado)
+    if (!inicializado)
     {
-        if(init()!=0)
+        if (init() != 0)
             return ERRO_LEITURA;
     };
 
-
-    if(pathname[0] != '/' || strlen(pathname) < 2) // o caminho é sempre absoluto, então se não entrou / no início não tá tentando acessar diretório raiz
+    if (pathname[0] != '/' || strlen(pathname) < 2) // o caminho ï¿½ sempre absoluto, entï¿½o se nï¿½o entrou / no inï¿½cio nï¿½o tï¿½ tentando acessar diretï¿½rio raiz
     {
         printf("pathname incorreto, uso: /path_to_dir\n");
         return INVALID_PATH;
     };
 
-    char *pathname2 = strdup(pathname); // não da pra pegar direto de pathname
-    char *dir = strtok(pathname2, "/"); // o que procurar no diretório raiz
+    char *pathname2 = strdup(pathname); // nï¿½o da pra pegar direto de pathname
+    char *dir = strtok(pathname2, "/"); // o que procurar no diretï¿½rio raiz
 
-    // bloco onde salvar o novo diretório
+    // bloco onde salvar o novo diretï¿½rio
     DWORD novoSubDiretorioBloco;
     DWORD novoDiretorioBloco;
-    // novo diretório
+    // novo diretï¿½rio
     DIRENT3 *novoDiretorio = NULL;
     DIRENT3 *novoSubDiretorio = NULL;
     DIRENT3 *dirAuxiliar = NULL;
 
-    int quantos_filhos =(256 * setoresPorBloco) - 265 - 3; // quantos filhos cada diretório pode ter
+    int quantos_filhos = (256 * setoresPorBloco) - 265 - 3; // quantos filhos cada diretï¿½rio pode ter
     unsigned char *buffer = NULL;
 
-    int m=0;
-    int n=0;
+    int m = 0;
+    int n = 0;
     int encontrado = 0;
 
-    while(rootDirectory->numFilhos > n && encontrado == 0)  // procuro nos filhos do diretório raiz o filho dir
+    while (rootDirectory->numFilhos > n && encontrado == 0) // procuro nos filhos do diretï¿½rio raiz o filho dir
     {
-        novoDiretorioBloco = rootDirectory->dirFilhos[n]; // o bloco onde o novoDiretorio está é no diretório raiz
+        novoDiretorioBloco = rootDirectory->dirFilhos[n]; // o bloco onde o novoDiretorio estï¿½ ï¿½ no diretï¿½rio raiz
         buffer = readBlock(novoDiretorioBloco);
         novoDiretorio = (DIRENT3 *)buffer;
 
-
-        // comparar o diretório que estou (novodiretorio) com o que quero criar
-        if(!strcmp(novoDiretorio->name, dir) && novoDiretorio->fileType == ARQ_DIRETORIO)
+        // comparar o diretï¿½rio que estou (novodiretorio) com o que quero criar
+        if (!strcmp(novoDiretorio->name, dir) && novoDiretorio->fileType == ARQ_DIRETORIO)
         {
             // se eles forem iguais encontrei
             encontrado = 1;
-            if(debug == 1)
+            if (debug == 1)
             {
                 printf("Encontrei %s no diretorio raiz!\n", dir);
             }
@@ -817,40 +858,37 @@ int mkdir2 (char *pathname)
         else
         {
             n++;
-
         }
-
     }
 
-    // se o diretório raiz tem 0 filhos ou eu não encontrei, preciso criar dentro do diretório raiz o dir
-    if(encontrado == 0)
+    // se o diretï¿½rio raiz tem 0 filhos ou eu nï¿½o encontrei, preciso criar dentro do diretï¿½rio raiz o dir
+    if (encontrado == 0)
     {
         novoDiretorioBloco = aloca_bloco();
-        // se não tem filhos no raiz, criar um
-        if(novoDiretorioBloco == 0)
+        // se nï¿½o tem filhos no raiz, criar um
+        if (novoDiretorioBloco == 0)
         {
             return -1;
-
         }
 
-        if(debug == 1)
+        if (debug == 1)
         {
             printf("Nao encontrei %s no diretorio raiz\nCriando ele como %d filho do raiz\n", dir, rootDirectory->numFilhos);
             printf("Criando filho do diretorio raiz no bloco %d\n", novoDiretorioBloco);
         }
-        // se o diretório raiz ja tem o tamanho de um bloco em bytes não pode alocar mais um diretório
+        // se o diretï¿½rio raiz ja tem o tamanho de um bloco em bytes nï¿½o pode alocar mais um diretï¿½rio
 
-        // preencho os dados do novo diretório
-        novoDiretorio = malloc(sizeof(*novoDiretorio)+quantos_filhos);
+        // preencho os dados do novo diretï¿½rio
+        novoDiretorio = malloc(sizeof(*novoDiretorio) + quantos_filhos);
         novoDiretorio->dirFilhos[0] = -1;
-        novoDiretorio->fileSize     = sizeof(*novoDiretorio)+quantos_filhos;
-        novoDiretorio->fileType     = ARQ_DIRETORIO;
-        novoDiretorio->numFilhos    = 0;
-        novoDiretorio->setorDados   = LAST_BLOCK;
+        novoDiretorio->fileSize = sizeof(*novoDiretorio) + quantos_filhos;
+        novoDiretorio->fileType = ARQ_DIRETORIO;
+        novoDiretorio->numFilhos = 0;
+        novoDiretorio->setorDados = LAST_BLOCK;
         strcpy(novoDiretorio->name, dir);
 
-        // atualizo o diretório raiz
-        if(rootDirectory->numFilhos >= (quantos_filhos/2))  // se não tem filhos ja tá alocado a memória pra um filho
+        // atualizo o diretï¿½rio raiz
+        if (rootDirectory->numFilhos >= (quantos_filhos / 2)) // se nï¿½o tem filhos ja tï¿½ alocado a memï¿½ria pra um filho
         {
             printf("max de filhos atingido!\n");
             return -1;
@@ -859,14 +897,13 @@ int mkdir2 (char *pathname)
         {
             rootDirectory->dirFilhos[rootDirectory->numFilhos] = novoDiretorioBloco;
         }
-        rootDirectory->numFilhos = rootDirectory->numFilhos + 1; // atualizo o número de filhos
+        rootDirectory->numFilhos = rootDirectory->numFilhos + 1; // atualizo o nï¿½mero de filhos
 
-
-        if(!writeBlock((unsigned char *)rootDirectory, 1)) // salvo o diretório raiz na memória
+        if (!writeBlock((unsigned char *)rootDirectory, 1)) // salvo o diretï¿½rio raiz na memï¿½ria
         {
-            if(!writeBlock((unsigned char*)novoDiretorio, novoDiretorioBloco)) // salvo o novo diretorio na memória
+            if (!writeBlock((unsigned char *)novoDiretorio, novoDiretorioBloco)) // salvo o novo diretorio na memï¿½ria
             {
-                if(debug)
+                if (debug)
                     printf("Diretorio %s criado com sucesso no bloco %d!\n", dir, novoDiretorioBloco);
                 else
                     printf("Diretorio %s criado com sucesso.\n", dir);
@@ -876,26 +913,26 @@ int mkdir2 (char *pathname)
 
     dir = strtok(NULL, "/");
     encontrado = 0;
-    m=0;
-    while(dir != NULL) // enquanto ainda tiver subdiretórios
+    m = 0;
+    while (dir != NULL) // enquanto ainda tiver subdiretï¿½rios
     {
         encontrado = 0;
-        m=0;
+        m = 0;
         // procurar em novoDiretorio a entrada com nome dir
-        // se encontrar -> ela é novoDiretorio
-        // se não encontrar -> criar ela e ela é novoDiretorio
-        while(m < novoDiretorio->numFilhos && encontrado == 0)  // itera por todos os filhos do novo dirretório ou até encontrar
+        // se encontrar -> ela ï¿½ novoDiretorio
+        // se nï¿½o encontrar -> criar ela e ela ï¿½ novoDiretorio
+        while (m < novoDiretorio->numFilhos && encontrado == 0) // itera por todos os filhos do novo dirretï¿½rio ou atï¿½ encontrar
         {
-            if(debug)
+            if (debug)
                 printf("iterando pelos filhos de %s\n", novoDiretorio->name);
-            //procurar em novoDiretorio os filhos até achar algum com nome de dir
+            //procurar em novoDiretorio os filhos atï¿½ achar algum com nome de dir
             // le o bloco
             buffer = readBlock(novoDiretorio->dirFilhos[m]);
-            dirAuxiliar = (DIRENT3 *) buffer;
+            dirAuxiliar = (DIRENT3 *)buffer;
             // compara o dirAuxiliar com o que estou procurando
-            if(!strcmp(dirAuxiliar->name, dir) && dirAuxiliar->fileType == ARQ_DIRETORIO)
+            if (!strcmp(dirAuxiliar->name, dir) && dirAuxiliar->fileType == ARQ_DIRETORIO)
             {
-                if(debug == 1)
+                if (debug == 1)
                 {
                     printf("Encontrado %s como subdiretorio de %s\n", dir, novoDiretorio->name);
                 }
@@ -903,38 +940,37 @@ int mkdir2 (char *pathname)
                 // se for igual encontrei
                 novoDiretorioBloco = novoDiretorio->dirFilhos[m];
                 novoDiretorio = dirAuxiliar;
-                // ele é o novoDiretorio, para procurar o proxímo token nele
+                // ele ï¿½ o novoDiretorio, para procurar o proxï¿½mo token nele
             }
             else
             {
                 m++;
             }
         }
-        m=0; // para próxima iteração
+        m = 0; // para prï¿½xima iteraï¿½ï¿½o
 
-        // se acabou o loop e não encontrou
+        // se acabou o loop e nï¿½o encontrou
         if (encontrado == 0)
         {
-            novoSubDiretorioBloco = (DWORD)aloca_bloco(); // aloca bloco pra guardar o novo diretório
+            novoSubDiretorioBloco = (DWORD)aloca_bloco(); // aloca bloco pra guardar o novo diretï¿½rio
 
-            if(novoSubDiretorioBloco == 0)  // se não consegue alocar bloco não pode criar
+            if (novoSubDiretorioBloco == 0) // se nï¿½o consegue alocar bloco nï¿½o pode criar
             {
                 return -1;
             }
-            if( novoDiretorio->numFilhos  >= (quantos_filhos/2 ))
+            if (novoDiretorio->numFilhos >= (quantos_filhos / 2))
             {
                 printf("max de filhos atingido!\n");
-                return -2; // não tem mais espaço para diretórios filhos retorna erro
+                return -2; // nï¿½o tem mais espaï¿½o para diretï¿½rios filhos retorna erro
             }
 
-
-            novoSubDiretorio = malloc( sizeof(*novoSubDiretorio) + quantos_filhos);
-            novoSubDiretorio->fileSize     = sizeof(*novoSubDiretorio) + quantos_filhos;
-            novoSubDiretorio->fileType     = ARQ_DIRETORIO;
-            novoSubDiretorio->numFilhos    = 0;
-            novoSubDiretorio->setorDados   = LAST_BLOCK;
+            novoSubDiretorio = malloc(sizeof(*novoSubDiretorio) + quantos_filhos);
+            novoSubDiretorio->fileSize = sizeof(*novoSubDiretorio) + quantos_filhos;
+            novoSubDiretorio->fileType = ARQ_DIRETORIO;
+            novoSubDiretorio->numFilhos = 0;
+            novoSubDiretorio->setorDados = LAST_BLOCK;
             novoSubDiretorio->dirFilhos[0] = -1;
-            strcpy(novoSubDiretorio->name,dir);
+            strcpy(novoSubDiretorio->name, dir);
 
             // criar em novoDiretorio a entrada dir
             // e faz de dir o novoDiretorio
@@ -942,9 +978,9 @@ int mkdir2 (char *pathname)
             novoDiretorio->dirFilhos[novoDiretorio->numFilhos] = novoSubDiretorioBloco;
             novoDiretorio->numFilhos = novoDiretorio->numFilhos + 1;
 
-            if(!writeBlock((unsigned char *)novoDiretorio, novoDiretorioBloco)) // salvo o diretório raiz na memória
+            if (!writeBlock((unsigned char *)novoDiretorio, novoDiretorioBloco)) // salvo o diretï¿½rio raiz na memï¿½ria
             {
-                if(!writeBlock((unsigned char*)novoSubDiretorio, novoSubDiretorioBloco)) // salvo o novo diretorio na memória
+                if (!writeBlock((unsigned char *)novoSubDiretorio, novoSubDiretorioBloco)) // salvo o novo diretorio na memï¿½ria
                 {
                     if (debug)
                         printf("Diretorio %s criado com sucesso!\n%s eh subdiretorio de %s e esta no bloco %d\n", novoSubDiretorio->name, novoSubDiretorio->name, novoDiretorio->name, novoSubDiretorioBloco);
@@ -962,29 +998,27 @@ int mkdir2 (char *pathname)
 
     free(buffer);
     return 0;
-
 }
 
-
 /*-----------------------------------------------------------------------------
-Função:	Função usada para remover (apagar) um diretório do disco.
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para remover (apagar) um diretï¿½rio do disco.
 -----------------------------------------------------------------------------*/
-int rmdir2 (char *pathname)
+int rmdir2(char *pathname)
 {
-    if(!inicializado)
+    if (!inicializado)
     {
         init();
     }
-    char *string = strdup(pathname); // pra caso dê problema com a string antes
+    char *string = strdup(pathname); // pra caso dï¿½ problema com a string antes
 
     DWORD block;
-    DIRENT3 *toBeRemoved = lookForDir(pathname, &block); // procura diretório a ser removido
-    if(toBeRemoved == NULL)
+    DIRENT3 *toBeRemoved = lookForDir(pathname, &block); // procura diretï¿½rio a ser removido
+    if (toBeRemoved == NULL)
     {
         printf("Diretorio nao encontrado!\n");
         return -1;
     }
-    if(toBeRemoved->fileType == ARQ_REGULAR)
+    if (toBeRemoved->fileType == ARQ_REGULAR)
     {
         printf("Nao eh arquivo de diretorio!\n");
         return -2;
@@ -992,44 +1026,43 @@ int rmdir2 (char *pathname)
 
     DWORD *blocksToErase = NULL; // lista de blocos que precisam ser desalocados
     int count = 1;
-    if(debug)
+    if (debug)
         printf("about to remove dir %s on block %d", toBeRemoved->name, block);
     int i;
 
     listBlocks(toBeRemoved, &blocksToErase, &count);
 
-    if(count == 1)
+    if (count == 1)
     {
-        blocksToErase = malloc(sizeof(DWORD)); // se nao tem filhos poem só ele na lista
+        blocksToErase = malloc(sizeof(DWORD)); // se nao tem filhos poem sï¿½ ele na lista
     }
 
-    blocksToErase[count-1] = block;
+    blocksToErase[count - 1] = block;
 
-    for(i=0; i<count; i++)
+    for (i = 0; i < count; i++)
     {
-        if(debug)
+        if (debug)
             printf("%d\n", blocksToErase[i]);
         libera_bloco(blocksToErase[i]); // libera o bloco
-
     }
 
-//     decrementa 1 do numero de filhos do diretorio pai
-    // pega o penúltimo diretório na hierarquia, ele é o pai do diretorio que estou removendo (no sentido se entrou /a/b, removeu /b o pai é a
+    //     decrementa 1 do numero de filhos do diretorio pai
+    // pega o penï¿½ltimo diretï¿½rio na hierarquia, ele ï¿½ o pai do diretorio que estou removendo (no sentido se entrou /a/b, removeu /b o pai ï¿½ a
     char *str = strtok(string, "/");
     char *straux = str;
     char *newPath = malloc(strlen(string));
     newPath[0] = '/';
     newPath[1] = '\0';
-    int encontrado=0;
-    while(!encontrado)
+    int encontrado = 0;
+    while (!encontrado)
     {
-        straux = strtok(NULL,"/");
+        straux = strtok(NULL, "/");
 
-        if(straux== NULL)
+        if (straux == NULL)
         {
-            if(debug)
+            if (debug)
                 printf("\n ->>> %s\n", newPath);
-            encontrado=1;
+            encontrado = 1;
         }
         else
         {
@@ -1037,113 +1070,110 @@ int rmdir2 (char *pathname)
             strcat(newPath, str);
             strcat(newPath, "/");
             str = straux;
-
         }
     }
-///
+    ///
     int indexToRemove;
-    if(strcmp(newPath, "/")==0)
+    if (strcmp(newPath, "/") == 0)
     {
-        if(debug)
+        if (debug)
             printf("Filho do dir. raiz!\n");
 
-        // encontra nos filhos diretório raiz o index do bloco que vai ser tirado e desloca o array todo uma posição atrás dele
-        for(i=0; i!= -1 ; i++)
+        // encontra nos filhos diretï¿½rio raiz o index do bloco que vai ser tirado e desloca o array todo uma posiï¿½ï¿½o atrï¿½s dele
+        for (i = 0; i != -1; i++)
         {
-            if(rootDirectory->dirFilhos[i] == block)
+            if (rootDirectory->dirFilhos[i] == block)
             {
                 indexToRemove = i;
-                i=-2;
+                i = -2;
             }
         }
-        for(i=indexToRemove; i<rootDirectory->numFilhos; i++)
+        for (i = indexToRemove; i < rootDirectory->numFilhos; i++)
         {
-            rootDirectory->dirFilhos[i] = rootDirectory->dirFilhos[i+1];
+            rootDirectory->dirFilhos[i] = rootDirectory->dirFilhos[i + 1];
         }
-        rootDirectory->numFilhos = rootDirectory->numFilhos-1;
+        rootDirectory->numFilhos = rootDirectory->numFilhos - 1;
         // atualiza o diretorio raiz no disco
-        writeBlock((unsigned char*)rootDirectory, 1);
+        writeBlock((unsigned char *)rootDirectory, 1);
     }
     else
     {
         DWORD blocoPai;
         DIRENT3 *pai = lookForDir(newPath, &blocoPai);
-        if(debug)
+        if (debug)
             printf("pai: %s\n", pai->name);
 
-        // encontra nos filhos diretório pai o index do bloco que vai ser tirado e desloca o array todo uma posição atrás dele
-        for(i=0; i!= -1 ; i++)
+        // encontra nos filhos diretï¿½rio pai o index do bloco que vai ser tirado e desloca o array todo uma posiï¿½ï¿½o atrï¿½s dele
+        for (i = 0; i != -1; i++)
         {
-            if(pai->dirFilhos[i] == block)
+            if (pai->dirFilhos[i] == block)
             {
                 indexToRemove = i;
-                i=-2;
+                i = -2;
             }
         }
-        for(i=indexToRemove; i<pai->numFilhos; i++)
+        for (i = indexToRemove; i < pai->numFilhos; i++)
         {
-            pai->dirFilhos[i] = pai->dirFilhos[i+1];
+            pai->dirFilhos[i] = pai->dirFilhos[i + 1];
         }
-        pai->numFilhos = pai->numFilhos-1;
+        pai->numFilhos = pai->numFilhos - 1;
         //atualiza o pai no disco
-        writeBlock((unsigned char*)pai, blocoPai);
+        writeBlock((unsigned char *)pai, blocoPai);
     }
     return 0;
 }
 
-void listBlocks(DIRENT3* alvo, DWORD **list, int *count)
+void listBlocks(DIRENT3 *alvo, DWORD **list, int *count)
 {
-    // pra cada diretório que entra nessa função eu listo os filhos dele e chamo recursivamente essa função para listar os filhos dele
+    // pra cada diretï¿½rio que entra nessa funï¿½ï¿½o eu listo os filhos dele e chamo recursivamente essa funï¿½ï¿½o para listar os filhos dele
     // fazendo percurso no grafo
-    int i=0;
-    if(debug)
+    int i = 0;
+    if (debug)
         printf("LISTANDO FILHOS DE %s\n", alvo->name);
 
-    for(i=0; i<alvo->numFilhos; i++) // pra cada diretório filho desse diretório
+    for (i = 0; i < alvo->numFilhos; i++) // pra cada diretï¿½rio filho desse diretï¿½rio
     {
-        DWORD* biggerList = NULL;
-        biggerList = (DWORD*) realloc (*list, *count * sizeof(DWORD)); // realoco a lista para caber mais o elemento que preciso
+        DWORD *biggerList = NULL;
+        biggerList = (DWORD *)realloc(*list, *count * sizeof(DWORD)); // realoco a lista para caber mais o elemento que preciso
 
-        if (biggerList!=NULL) // se consegui realocar
+        if (biggerList != NULL) // se consegui realocar
         {
-            *list=biggerList; // atualizo a lista
-            *(*list+*count-1)=alvo->dirFilhos[i]; // adiciono o bloco do diretorio filho na lista
+            *list = biggerList;                         // atualizo a lista
+            *(*list + *count - 1) = alvo->dirFilhos[i]; // adiciono o bloco do diretorio filho na lista
             unsigned char *buffer = readBlock(alvo->dirFilhos[i]);
             DIRENT3 *filho = (DIRENT3 *)buffer;
 
             *count = *count + 1;
-            listBlocks(filho, list, count); // leio o diretório filho e chamo a função para ele
-
+            listBlocks(filho, list, count); // leio o diretï¿½rio filho e chamo a funï¿½ï¿½o para ele
         }
         else
         {
-            free (*list);
-            puts ("Error (re)allocating memory\n");
-            exit (1);
+            free(*list);
+            puts("Error (re)allocating memory\n");
+            exit(1);
         }
     }
-
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para alterar o CP (current path)
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para alterar o CP (current path)
 -----------------------------------------------------------------------------*/
-int chdir2 (char *pathname)
+int chdir2(char *pathname)
 {
 
-    if(!inicializado)
+    if (!inicializado)
     {
-        if(init()!=0)
+        if (init() != 0)
             return ERRO_LEITURA;
     };
-    if(!pathname || strcmp(pathname, "/") == 0) // só cd no linux leva pro diretório raiz
+    if (!pathname || strcmp(pathname, "/") == 0) // sï¿½ cd no linux leva pro diretï¿½rio raiz
     {
-        if(debug==1)
+        if (debug == 1)
         {
             printf("Ir para o dir. raiz\n");
         }
         free(currentPath);
-        currentPath = malloc(sizeof(char)*2);
+        currentPath = malloc(sizeof(char) * 2);
         strcpy(currentPath, "/");
         raiz = 1;
         return 0;
@@ -1151,10 +1181,10 @@ int chdir2 (char *pathname)
 
     int sucesso = 0;
     DIRENT3 *pathDir = lookForDir(pathname, NULL);
-    if(debug)
+    if (debug)
         printf("CURRENT PATH NO DIRETORIO %s\n", pathDir->name);
 
-    if(pathDir==NULL)
+    if (pathDir == NULL)
     {
         sucesso = 0;
     }
@@ -1162,10 +1192,10 @@ int chdir2 (char *pathname)
     {
         sucesso = 1;
     }
-    if(sucesso) // se eu achei o diretório pathname é sucesso, newpath é pathname
+    if (sucesso) // se eu achei o diretï¿½rio pathname ï¿½ sucesso, newpath ï¿½ pathname
     {
         char *newPath = calloc(strlen(pathname), sizeof(char));
-        if(newPath==NULL)
+        if (newPath == NULL)
             return -1;
         strcpy(newPath, pathname);
         free(currentPath);
@@ -1175,20 +1205,20 @@ int chdir2 (char *pathname)
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para obter o caminho do diretório corrente.
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para obter o caminho do diretï¿½rio corrente.
 -----------------------------------------------------------------------------*/
-int getcwd2 (char *pathname, int size)
+int getcwd2(char *pathname, int size)
 {
-    if(!inicializado)
+    if (!inicializado)
     {
         init();
     }
-    if(currentPath == NULL)
+    if (currentPath == NULL)
     {
-        currentPath = malloc(sizeof(char)*2);
+        currentPath = malloc(sizeof(char) * 2);
         strcpy(currentPath, "/");
     }
-    if(strlen(currentPath)>size)
+    if (strlen(currentPath) > size)
         return -1;
     else
         strcpy(pathname, currentPath);
@@ -1196,51 +1226,52 @@ int getcwd2 (char *pathname, int size)
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função que abre um diretório existente no disco.
+Funï¿½ï¿½o:	Funï¿½ï¿½o que abre um diretï¿½rio existente no disco.
 -----------------------------------------------------------------------------*/
-DIR2 opendir2 (char *pathname)
+DIR2 opendir2(char *pathname)
 {
     int handle;
 
-    if(!inicializado)
+    if (!inicializado)
     {
         init();
     }
-    if(dirIndex >= MAX_DIR_OPEN)
+    if (dirIndex >= MAX_DIR_OPEN)
     {
         printf("Nao pode abrir mais diretorios. Feche algum aberto!\n");
         return -1;
     }
     DIRENT3 *dirToOpen = lookForDir(pathname, NULL);
 
-    if(dirToOpen == NULL)
+    if (dirToOpen == NULL)
     {
         printf("Diretorio nao encontrado.\n");
         return -1;
     }
     else
     {
-        if(dirToOpen->fileType == ARQ_LINK)  // se é um link vai atrás do diretório real **ESPERAMOS QUE O USUARIO NAO APAGUE ELE E DEIXE O LINK**
+        if (dirToOpen->fileType == ARQ_LINK) // se ï¿½ um link vai atrï¿½s do diretï¿½rio real **ESPERAMOS QUE O USUARIO NAO APAGUE ELE E DEIXE O LINK**
         {
-            while(dirToOpen->fileType == ARQ_LINK){
-                unsigned char* buffer = NULL;
-                buffer=readBlock(dirToOpen->setorDados);
+            while (dirToOpen->fileType == ARQ_LINK)
+            {
+                unsigned char *buffer = NULL;
+                buffer = readBlock(dirToOpen->setorDados);
                 dirToOpen = (DIRENT3 *)buffer;
             }
         }
-        if(dirToOpen->fileType == ARQ_DIRETORIO)
+        if (dirToOpen->fileType == ARQ_DIRETORIO)
         {
             int i;
-            for(i=0; i<MAX_DIR_OPEN; i++)
+            for (i = 0; i < MAX_DIR_OPEN; i++)
             {
-                if(openDirectories[i] == NULL)
+                if (openDirectories[i] == NULL)
                 {
                     handle = i;
-                    i=MAX_DIR_OPEN;
+                    i = MAX_DIR_OPEN;
                 }
             }
             openDirectories[handle] = dirToOpen;
-            if(debug)
+            if (debug)
             {
                 printf("Abriu diretorio %s\n", openDirectories[handle]->name);
             }
@@ -1254,20 +1285,19 @@ DIR2 opendir2 (char *pathname)
 
         return handle;
     }
-
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para ler as entradas de um diretório.
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para ler as entradas de um diretï¿½rio.
 -----------------------------------------------------------------------------*/
-int readdir2 (DIR2 handle, DIRENT2 *dentry)
+int readdir2(DIR2 handle, DIRENT2 *dentry)
 {
-    if(!inicializado)
+    if (!inicializado)
     {
         init();
     }
 
-    if(openDirectories[handle] != NULL)
+    if (openDirectories[handle] != NULL)
     {
         dentry->fileSize = sizeof(DIRENT2) + openDirectories[handle]->numFilhos;
         dentry->fileType = openDirectories[handle]->fileType;
@@ -1281,15 +1311,15 @@ int readdir2 (DIR2 handle, DIRENT2 *dentry)
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para fechar um diretório.
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para fechar um diretï¿½rio.
 -----------------------------------------------------------------------------*/
-int closedir2 (DIR2 handle)
+int closedir2(DIR2 handle)
 {
-    if(!inicializado)
+    if (!inicializado)
     {
         init();
     }
-    if(openDirectories[handle] != NULL)
+    if (openDirectories[handle] != NULL)
     {
         printf("Closed file %s\n", openDirectories[handle]->name);
         free(openDirectories[handle]);
@@ -1300,20 +1330,20 @@ int closedir2 (DIR2 handle)
 }
 
 /*-----------------------------------------------------------------------------
-Função:	Função usada para criar um caminho alternativo (HARDLINK) para um arquivo
-diretório ou regular. O bloco alvo do link está no campo bloco de dados, quando
-o arquivo alvo é apagado, o link continua existindo até ser apagado também. Se
-o link é apagado, nada acontece com o arquivo.
+Funï¿½ï¿½o:	Funï¿½ï¿½o usada para criar um caminho alternativo (HARDLINK) para um arquivo
+diretï¿½rio ou regular. O bloco alvo do link estï¿½ no campo bloco de dados, quando
+o arquivo alvo ï¿½ apagado, o link continua existindo atï¿½ ser apagado tambï¿½m. Se
+o link ï¿½ apagado, nada acontece com o arquivo.
 -----------------------------------------------------------------------------*/
-int ln2 (char *linkname, char *filename)
+int ln2(char *linkname, char *filename)
 {
-    if(!inicializado)
+    if (!inicializado)
     {
-        if(init()!=0)
+        if (init() != 0)
             return ERRO_LEITURA;
     };
 
-    if(linkname[0] != '/' || strlen(linkname) < 2) // o caminho é sempre absoluto, então se não entrou / no início não tá tentando acessar diretório raiz
+    if (linkname[0] != '/' || strlen(linkname) < 2) // o caminho ï¿½ sempre absoluto, entï¿½o se nï¿½o entrou / no inï¿½cio nï¿½o tï¿½ tentando acessar diretï¿½rio raiz
     {
         printf("pathname incorreto, uso: /path_to_dir\n");
         return INVALID_PATH;
@@ -1321,34 +1351,32 @@ int ln2 (char *linkname, char *filename)
 
     DWORD bloco;
     DIRENT3 *dir = lookForDir(filename, &bloco); // procura o alvo do link
-    if(dir == NULL)
+    if (dir == NULL)
     {
         printf("Erro: %s nao foi encontrado!\n", filename);
         return -1;
     }
 
-
-
     // cria o arquivo de link
-    // pega o penúltimo diretório na hierarquia, ele é o pai do diretorio que estou removendo (no sentido se entrou /a/b, removeu /b o pai é a
-    char *string = strdup(linkname); // cria uma cópia do linkname
+    // pega o penï¿½ltimo diretï¿½rio na hierarquia, ele ï¿½ o pai do diretorio que estou removendo (no sentido se entrou /a/b, removeu /b o pai ï¿½ a
+    char *string = strdup(linkname); // cria uma cï¿½pia do linkname
     char *str = strtok(string, "/");
     char *straux = str;
     char *newPath = malloc(strlen(linkname));
     char *linkname2 = malloc(strlen(linkname));
     newPath[0] = '/';
     newPath[1] = '\0';
-    int encontrado=0;
-    while(!encontrado)
+    int encontrado = 0;
+    while (!encontrado)
     {
         strcpy(linkname2, straux); // guarda o nome do arquivo de link
-        straux = strtok(NULL,"/");
+        straux = strtok(NULL, "/");
 
-        if(straux== NULL)
+        if (straux == NULL)
         {
-            if(debug)
+            if (debug)
                 printf("\n ->>> %s\n", newPath);
-            encontrado=1;
+            encontrado = 1;
         }
         else
         {
@@ -1356,14 +1384,12 @@ int ln2 (char *linkname, char *filename)
             strcat(newPath, str);
             strcat(newPath, "/");
             str = straux;
-
         }
     }
-    if(debug)
+    if (debug)
         printf("procurar %s e criar %s\n", newPath, linkname2);
 
-
-    DIRENT3* link = malloc(sizeof(*link) + sizeof(DWORD));
+    DIRENT3 *link = malloc(sizeof(*link) + sizeof(DWORD));
     link->dirFilhos[0] = 0;
     link->fileType = ARQ_LINK;
     strcpy(link->name, linkname2);
@@ -1371,24 +1397,21 @@ int ln2 (char *linkname, char *filename)
     link->fileSize = sizeof(DIRENT3);
     link->numFilhos = 0;
     DWORD blocoLink = (DWORD)aloca_bloco();
-    if(blocoLink==0)
+    if (blocoLink == 0)
     {
         printf("Nao foi possivel alocar bloco para o link\n");
         return -4;
     }
 
-
-
-
-    if(strcmp(newPath,"/")==0)
+    if (strcmp(newPath, "/") == 0)
     {
         // link esta no diretorio raiz
 
         rootDirectory->dirFilhos[rootDirectory->numFilhos] = blocoLink;
-        rootDirectory->numFilhos+=1;
-        if(!writeBlock((unsigned char*)link, blocoLink)) // salvo o novo diretorio na memória
+        rootDirectory->numFilhos += 1;
+        if (!writeBlock((unsigned char *)link, blocoLink)) // salvo o novo diretorio na memï¿½ria
         {
-            if(!writeBlock((unsigned char*)rootDirectory, 1)) // salvo o novo diretorio na memória
+            if (!writeBlock((unsigned char *)rootDirectory, 1)) // salvo o novo diretorio na memï¿½ria
             {
                 if (debug)
                     printf("Link %s criado com sucesso no bloco %d!\n", link->name, blocoLink);
@@ -1400,10 +1423,9 @@ int ln2 (char *linkname, char *filename)
         return 0;
     }
 
-
     DWORD blocoPai;
-    DIRENT3 *link_pai = lookForDir(newPath, &blocoPai); // informações do pai do link
-    if(link_pai == NULL || link_pai->fileType != ARQ_DIRETORIO)
+    DIRENT3 *link_pai = lookForDir(newPath, &blocoPai); // informaï¿½ï¿½es do pai do link
+    if (link_pai == NULL || link_pai->fileType != ARQ_DIRETORIO)
     {
         printf("Nao eh possivel criar link, certifique-se de que o path eh de /dir/.../dir/link\n");
         return -3;
@@ -1412,10 +1434,10 @@ int ln2 (char *linkname, char *filename)
     {
 
         link_pai->dirFilhos[link_pai->numFilhos] = blocoLink;
-        link_pai->numFilhos+=1;
-        if(!writeBlock((unsigned char*)link, blocoLink)) // salvo o novo diretorio na memória
+        link_pai->numFilhos += 1;
+        if (!writeBlock((unsigned char *)link, blocoLink)) // salvo o novo diretorio na memï¿½ria
         {
-            if(!writeBlock((unsigned char*)link_pai, blocoPai)) // salvo o novo diretorio na memória
+            if (!writeBlock((unsigned char *)link_pai, blocoPai)) // salvo o novo diretorio na memï¿½ria
             {
                 if (debug)
                     printf("Link %s criado com sucesso no bloco %d!\n", link->name, blocoLink);
@@ -1424,8 +1446,6 @@ int ln2 (char *linkname, char *filename)
                 free(link);
             }
         }
-
-
     }
 
     free(linkname2);
@@ -1433,43 +1453,41 @@ int ln2 (char *linkname, char *filename)
     free(dir);
     free(link_pai);
     return 0;
-
 }
 
-DIRENT3 *lookForDir(char* path, DWORD* bloco)
+DIRENT3 *lookForDir(char *path, DWORD *bloco)
 {
-    if(path[0] != '/') // o caminho é sempre absoluto, então se não entrou / no início não tá tentando acessar diretório raiz
+    if (path[0] != '/') // o caminho ï¿½ sempre absoluto, entï¿½o se nï¿½o entrou / no inï¿½cio nï¿½o tï¿½ tentando acessar diretï¿½rio raiz
     {
         printf("pathname incorreto, uso: /path_to_dir\n");
         return NULL;
     };
 
-    char *pathname2 = strdup(path); // não da pra pegar direto de pathname
-    char *dir = strtok(pathname2, "/"); // o que procurar no diretório raiz
+    char *pathname2 = strdup(path);     // nï¿½o da pra pegar direto de pathname
+    char *dir = strtok(pathname2, "/"); // o que procurar no diretï¿½rio raiz
 
-
-    DWORD novoDiretorioBloco; // bloco onde está o novo diretório lido
-    DIRENT3 *novoDiretorio = NULL; // novo diretório lido
-    DIRENT3 *dirAuxiliar = NULL; // diretório auxiliar na procura de subdiretorios
-    unsigned char *buffer = NULL; // buffer pra leitura de blocos
+    DWORD novoDiretorioBloco;      // bloco onde estï¿½ o novo diretï¿½rio lido
+    DIRENT3 *novoDiretorio = NULL; // novo diretï¿½rio lido
+    DIRENT3 *dirAuxiliar = NULL;   // diretï¿½rio auxiliar na procura de subdiretorios
+    unsigned char *buffer = NULL;  // buffer pra leitura de blocos
 
     // contadores e flag
-    int m=0;
-    int n=0;
+    int m = 0;
+    int n = 0;
     int encontrado = 0;
 
-    while(rootDirectory->numFilhos > n && encontrado == 0)  // procuro nos filhos do diretório raiz o filho dir
+    while (rootDirectory->numFilhos > n && encontrado == 0) // procuro nos filhos do diretï¿½rio raiz o filho dir
     {
-        novoDiretorioBloco = *(rootDirectory->dirFilhos+n); // o bloco onde o novoDiretorio está é no diretório raiz
+        novoDiretorioBloco = *(rootDirectory->dirFilhos + n); // o bloco onde o novoDiretorio estï¿½ ï¿½ no diretï¿½rio raiz
         buffer = readBlock(novoDiretorioBloco);
         novoDiretorio = (DIRENT3 *)buffer;
 
-        // comparar o diretório que estou (novodiretorio) com o que quero criar
-        if(!strcmp(novoDiretorio->name, dir))
+        // comparar o diretï¿½rio que estou (novodiretorio) com o que quero criar
+        if (!strcmp(novoDiretorio->name, dir))
         {
             // se eles forem iguais encontrei
             encontrado = 1;
-            if(debug == 1)
+            if (debug == 1)
             {
                 printf("Encontrei %s no diretorio raiz!\n", novoDiretorio->name);
             }
@@ -1477,40 +1495,38 @@ DIRENT3 *lookForDir(char* path, DWORD* bloco)
         else
         {
             n++;
-
         }
-
     }
 
-    // se não encontrei retorna null e desaloca memória do buffer
-    if(encontrado == 0)
+    // se nï¿½o encontrei retorna null e desaloca memï¿½ria do buffer
+    if (encontrado == 0)
     {
-        if(debug == 1)
+        if (debug == 1)
         {
-            printf("Diretório %s nao encontrado no diretorio raiz!\n", dir);
+            printf("Diretï¿½rio %s nao encontrado no diretorio raiz!\n", dir);
         }
         free(buffer);
         return NULL;
     }
-    else // se encontrei procura o próximo subdiretório
+    else // se encontrei procura o prï¿½ximo subdiretï¿½rio
     {
         dir = strtok(NULL, "/");
         encontrado = 0;
-        m=0;
-        while(dir != NULL) // enquanto ainda tiver subdiretórios
+        m = 0;
+        while (dir != NULL) // enquanto ainda tiver subdiretï¿½rios
         {
             // procurar em novoDiretorio a entrada com nome dir
-            // se encontrar -> ela é novoDiretorio
-            while(m < novoDiretorio->numFilhos && encontrado == 0)  // itera por todos os filhos do novo dirretório ou até encontrar
+            // se encontrar -> ela ï¿½ novoDiretorio
+            while (m < novoDiretorio->numFilhos && encontrado == 0) // itera por todos os filhos do novo dirretï¿½rio ou atï¿½ encontrar
             {
-                //procurar em novoDiretorio os filhos até achar algum com nome de dir
+                //procurar em novoDiretorio os filhos atï¿½ achar algum com nome de dir
                 // le o bloco
                 buffer = readBlock(novoDiretorio->dirFilhos[m]);
-                dirAuxiliar = (DIRENT3 *) buffer;
+                dirAuxiliar = (DIRENT3 *)buffer;
                 // compara o dirAuxiliar com o que estou procurando
-                if(!strcmp(dirAuxiliar->name, dir))
+                if (!strcmp(dirAuxiliar->name, dir))
                 {
-                    if(debug == 1)
+                    if (debug == 1)
                     {
                         printf("Encontrado %s como subdiretorio de %s no bloco %d\n", dir, novoDiretorio->name, novoDiretorio->dirFilhos[m]);
                     }
@@ -1519,19 +1535,19 @@ DIRENT3 *lookForDir(char* path, DWORD* bloco)
                     encontrado = 1;
                     // se for igual encontrei
                     novoDiretorio = dirAuxiliar;
-                    // ele é o novoDiretorio, para procurar o proxímo token nele
+                    // ele ï¿½ o novoDiretorio, para procurar o proxï¿½mo token nele
                 }
                 else
                 {
                     m++;
                 }
             }
-            m=0; // para próxima iteração
+            m = 0; // para prï¿½xima iteraï¿½ï¿½o
 
-            // se acabou o loop e não encontrou, desaloca buffer e retorna null
+            // se acabou o loop e nï¿½o encontrou, desaloca buffer e retorna null
             if (encontrado == 0)
             {
-                if(debug==1)
+                if (debug == 1)
                 {
                     printf("Nao encontrado subdiretorio %s\n", dir);
                 }
@@ -1542,10 +1558,8 @@ DIRENT3 *lookForDir(char* path, DWORD* bloco)
             dir = strtok(NULL, "/");
             encontrado = 0;
         }
-        if(bloco!=NULL)
+        if (bloco != NULL)
             *bloco = novoDiretorioBloco;
         return novoDiretorio;
     }
 }
-
-
