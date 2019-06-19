@@ -355,6 +355,13 @@ Função:	Função usada para criar um novo arquivo no disco e abrí-lo,
 -----------------------------------------------------------------------------*/
 FILE2 create2 (char *filename)
 {	
+	if(!inicializado)
+    {
+        init();
+    }
+
+
+
 	int size_filename=0;
 	while(filename[size_filename]!='\0'){
 		size_filename++;
@@ -493,6 +500,11 @@ Função:	Função usada para realizar a leitura de uma certa quantidade
 -----------------------------------------------------------------------------*/
 int read2 (FILE2 handle, char *buffer, int size)
 {	
+	if(!inicializado)
+    {
+        init();
+    }
+	
 	//ESSA FUNÇÃO SUPÕE QUE ARQUIVOS TERMINEM COM '\0'
 
 	DIRENT3 *arquivoatual = arquivos_abertos[handle];
@@ -598,6 +610,11 @@ Função:	Função usada para realizar a escrita de uma certa quantidade
 -----------------------------------------------------------------------------*/
 int write2 (FILE2 handle, char *buffer, int size)
 {	
+	if(!inicializado)
+    {
+        init();
+    }
+	
 	//ESSA FUNÇÃO SUPÕE QUE O "SIZE" NÃO INCLUA O \0 DO FINAL
 
 	DIRENT3 *arquivoatual = arquivos_abertos[handle];
@@ -814,7 +831,12 @@ Função:	Altera o contador de posição (current pointer) do arquivo.
 -----------------------------------------------------------------------------*/
 int seek2 (FILE2 handle, DWORD offset)
 {
-    	DIRENT3 *arquivoatual = arquivos_abertos[handle];
+	if(!inicializado)
+    {
+        init();
+    }
+
+	DIRENT3 *arquivoatual = arquivos_abertos[handle];
 	
 	if((int)offset<(int)-1)
 		return -1;
