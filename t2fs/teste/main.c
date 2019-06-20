@@ -29,37 +29,21 @@ typedef struct
 int main( int argc, char *argv[])
 {
     char path[100];
-    char path2[100];
-    int op;
-    DIRENT2 dir;
-
-
-    while(1)
-    {
-        printf("0- novo dir, 1- novo link, 2- abrir arq, 3- read dir: ");
-        scanf("%d", &op);
-        printf("path: ");
-        scanf(" %s", path);
-        if(op==0)
-            mkdir2(path);
-        else if (op == 1)
-        {
-            printf("Link de que dir? ");
-            scanf(" %s", path2);
-            ln2(path, path2);
-        }
-        else if(op == 2)
-        {
-            printf("handle: %d\n", opendir2(path));
-        } else if(op==3){
-            printf("handle: ");
-            scanf(" %d", &op);
-            readdir2(op, &dir);
-            printf("dir name: %s\n", dir.name);
-        }
-
-    }
-
-
+    FILE2 handle;
+    format2(8);
+    getcwd2(path, 100);
+    mkdir2("/a");
+    printf("%s\n", path);
+    chdir2("/a");
+    mkdir2("/a");
+    printf("%s\n", path);
+    printf("%d", create2("caralhoa"));
+    unsigned char* demonio = readBlock(17);
+    DIRENT3 *arq = (DIRENT3 *)demonio;
+    printf("arq name: %s\n", arq->name);
+//    handle = open2("/a");
+//    write2(handle, "batata", strlen("batata"));
+//    read2(handle, path, strlen("batata"));
+//    printf("%s\n", path);
     return 0;
 }
