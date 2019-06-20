@@ -637,7 +637,11 @@ int close2(FILE2 handle)
     {
         init();
     }
-
+	
+	DIRENT3 *arquivoatual = arquivos_abertos[handle];
+	int setores_por_bloco = rootDirectory->nBlocosSist;	
+	
+	
     if (arquivos_abertos[handle]->fileType == ARQ_DIRETORIO)
     {
         return ERRO_DEVERIA_FECHAR_ARQUIVO_NAO_DIRETORIO;
@@ -650,7 +654,19 @@ int close2(FILE2 handle)
             printf("Fechando arquivo %s.\n", arquivos_abertos[handle]->name);
         }
         if(arquivos_abertos[handle] != NULL)
-        {
+        {	
+			arquivoatual->numFilhos = 0;
+			seek2(handle,0);
+			char retorno[508];
+			read2(handle,retorno,508);
+			unsigned char buffer_reader[256];
+			read_sector(arquivoatual->setorDados-1+setores_por_bloco-1,buffer_reader);
+			writeBlock((unsigned char*)arquivoatual, arquivoatual->setorDados-1);
+			write_sector(arquivoatual->setorDados-1+setores_por_bloco-1,buffer_reader);
+			seek2(handle,0);
+			write2(handle,retorno,508);
+			
+	
             free(arquivos_abertos[handle]);
             arquivos_abertos[handle] = NULL;
             total_arquivos_abertos--;
@@ -702,7 +718,7 @@ int read2 (FILE2 handle, char *buffer, int size)
     int j;
     int k=0;
     //le os 254 bytes de cada setor do primeiro bloco
-    for(i=1; i<setores_por_bloco; i++)
+    for(i=2; i<setores_por_bloco; i++)
     {
 
         if(read_sector(primeirobloco+i,buffer_reader)!=0)
@@ -842,7 +858,7 @@ int write2 (FILE2 handle, char *buffer, int size)
     //le os 254 bytes de cada setor do primeiro bloco
     if(tamanho_arredondado>0)
     {
-        for(i=1; i<setores_por_bloco; i++)
+        for(i=2; i<setores_por_bloco; i++)
         {
 
             if(read_sector(primeirobloco+i,buffer_reader)!=0)
@@ -919,7 +935,7 @@ int write2 (FILE2 handle, char *buffer, int size)
     int tamanho_novo = arquivoatual->fileSize;
     unsigned char buffer_writer[SECTOR_SIZE];
     k=0;
-    for(i=1; i<setores_por_bloco; i++)
+    for(i=2; i<setores_por_bloco; i++)
     {
 
         //testa se esta no ultimo setor do primeiro bloco
@@ -1063,7 +1079,7 @@ int truncate2 (FILE2 handle)
     int bloco_novo = conteudo_setor[256]<<8 | conteudo_setor[255];
     int i;
     unsigned char buffer_writer[SECTOR_SIZE]= {0};
-    for(i=1; i< rootDirectory->nBlocosSist; i++)
+    for(i=2; i< rootDirectory->nBlocosSist; i++)
     {
         write_sector(primeirobloco+i,buffer_writer);
     }
