@@ -69,6 +69,7 @@ void libera_bloco(int ); // função que desaloca um bloco (preenche com 0s)
 int init(); // função que inicia o sistema (preenche variaveis necessárias para execução
 DIRENT3 *lookForDir(char*, DWORD*); // função que procura um diretório (não deve ser chamada por usuários)
 void listBlocks(DIRENT3*, DWORD **, int *); // caminha recursivamente no grafo listando o bloco dos filhos de um diretorio
+void remove_blocos(int bloco); //libera blocos salvos de um arquivo
 // variáveis relativas ao current path
 char *currentPath=NULL;
 DIRENT3 *currentDir;
@@ -355,7 +356,7 @@ Função:	Função usada para criar um novo arquivo no disco e abrí-lo,
 -----------------------------------------------------------------------------*/
 FILE2 create2 (char *filename)
 {	
-	if(!inicializado)
+	 if(!inicializado)
     {
         init();
     }
@@ -702,7 +703,7 @@ int write2 (FILE2 handle, char *buffer, int size)
 	}
 	
 	//escrever o conteudo novo
-	for(i=0;i<=size;i++){
+	for(i=0;i<size;i++){
 		arquivo_lido[contador+i] = buffer[i];
 		
 	}
@@ -822,8 +823,59 @@ Função:	Função usada para truncar um arquivo. Remove do arquivo
 		(current pointer), inclusive, até o seu final.
 -----------------------------------------------------------------------------*/
 int truncate2 (FILE2 handle)
-{
-    return -1;
+{	
+	DIRENT3 *arquivoatual = arquivos_abertos[handle];
+	
+	//-1 porque o primeiro setor esta sendo ocupado pelo header do arquivo
+	DWORD primeirobloco = arquivoatual->setorDados -1;
+	
+	//numfilhos armazena o contador atual do programa
+	int contador = arquivoatual->numFilhos;
+	
+	
+	char* texto;
+
+	texto = malloc(contador);
+	
+	seek2(handle,0);
+	if(read2(handle,texto,contador-1)<0)
+		printf("em truncate2: erro ao ler arquivo \n");
+
+	int ultimo_setor = primeirobloco + rootDirectory->nBlocosSist-1;
+	unsigned char conteudo_setor[SECTOR_SIZE];
+	read_sector(ultimo_setor,conteudo_setor);
+	int bloco_novo = conteudo_setor[256]<<8 | conteudo_setor[255];
+	int i;
+	unsigned char buffer_writer[SECTOR_SIZE]={0};
+	for(i=1;i< rootDirectory->nBlocosSist;i++){
+		write_sector(primeirobloco+i,buffer_writer);
+	}
+
+
+	remove_blocos(bloco_novo);
+
+	arquivoatual->fileSize=0;
+	arquivoatual->numFilhos = 0;
+	
+	write2(handle,texto,contador-1);
+	
+
+    return 0;
+}
+void remove_blocos(int bloco){
+	int ultimo_setor = bloco + rootDirectory->nBlocosSist-1;
+	unsigned char conteudo_setor[SECTOR_SIZE];
+	read_sector(ultimo_setor,conteudo_setor);
+	int bloco_novo = conteudo_setor[256]<<8 | conteudo_setor[255];
+	libera_bloco(bloco);
+	printf(" liberou bloco %d \n",bloco);
+	printf(" bloco seguinte a ser liberado: %d \n",bloco_novo);
+	if(bloco_novo == 0 )
+		return;
+	else {
+		remove_blocos(bloco_novo);
+	}
+	return;
 }
 
 /*-----------------------------------------------------------------------------
