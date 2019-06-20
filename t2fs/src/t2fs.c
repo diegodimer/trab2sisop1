@@ -484,7 +484,100 @@ Fun��o:	Fun��o usada para remover (apagar) um arquivo do disco.
 -----------------------------------------------------------------------------*/
 int delete2 (char *filename)
 {
-    return -1;
+     if(!inicializado)
+    {
+        init();
+    }
+    char *string = strdup(filename); // pra caso d� problema com a string antes
+
+    DWORD block;
+    DIRENT3 *toBeRemoved = lookForDir(filename, &block); // procura diret�rio a ser removido
+    if(toBeRemoved == NULL)
+    {
+        printf("Diretorio nao encontrado!\n");
+        return -1;
+    }
+    if(toBeRemoved->fileType != ARQ_REGULAR)
+    {
+        printf("Nao eh arquivo!\n");
+        return -2;
+    }
+
+    DWORD *blocksToErase = NULL; // lista de blocos que precisam ser desalocados
+    int count = 1;
+    if(debug)
+        printf("about to remove dir %s on block %d", toBeRemoved->name, block);
+    int i;
+
+    listBlocks(toBeRemoved, &blocksToErase, &count);
+
+     if(count == 1)
+    {
+        blocksToErase = malloc(sizeof(DWORD)); // se nao tem filhos poem s� ele na lista
+    }
+
+    blocksToErase[count-1] = block;
+
+    for(i=0; i<count; i++)
+    {
+        if(debug)
+            printf("%d\n", blocksToErase[i]);
+        libera_bloco(blocksToErase[i]); // libera o bloco
+
+    }
+     char *str = strtok(string, "/");
+    char *straux = str;
+    char *newPath = malloc(strlen(string));
+    newPath[0] = '/';
+    newPath[1] = '\0';
+    int encontrado=0;
+    while(!encontrado)
+    {
+        straux = strtok(NULL,"/");
+
+        if(straux== NULL)
+        {
+            if(debug)
+                printf("\n ->>> %s\n", newPath);
+            encontrado=1;
+        }
+        else
+        {
+
+            strcat(newPath, str);
+            strcat(newPath, "/");
+            str = straux;
+
+        }
+    }
+///
+    int indexToRemove;
+
+        DWORD blocoPai;
+        DIRENT3 *pai = lookForDir(newPath, &blocoPai);
+        if(debug)
+            printf("pai: %s\n", pai->name);
+
+        // encontra nos filhos diret�rio pai o index do bloco que vai ser tirado e desloca o array todo uma posi��o atr�s dele
+        for(i=0; i!= -1 ; i++)
+        {
+            if(pai->dirFilhos[i] == block)
+            {
+                indexToRemove = i;
+                i=-2;
+            }
+        }
+        for(i=indexToRemove; i<pai->numFilhos; i++)
+        {
+            pai->dirFilhos[i] = pai->dirFilhos[i+1];
+        }
+        pai->numFilhos = pai->numFilhos-1;
+        //atualiza o pai no disco
+        writeBlock((unsigned char*)pai, blocoPai);
+
+    return 0;
+
+
 }
 
 /*-----------------------------------------------------------------------------
