@@ -824,6 +824,10 @@ Função:	Função usada para truncar um arquivo. Remove do arquivo
 -----------------------------------------------------------------------------*/
 int truncate2 (FILE2 handle)
 {	
+	if(!inicializado)
+    {
+        init();
+    }
 	DIRENT3 *arquivoatual = arquivos_abertos[handle];
 	
 	//-1 porque o primeiro setor esta sendo ocupado pelo header do arquivo
