@@ -399,8 +399,9 @@ FILE2 create2 (char *filename)
 	int teste_raiz=0;
 	bloco_dir=malloc(sizeof(DWORD));
 	if(strcmp(caminho_completo,"/")!=0){
-
+		//strcat(caminho_completo,"/");
 		diretorio_atual = lookForDir(caminho_completo,bloco_dir);
+		//printf("em create2: saiu da lookfordir agr \n");
 	}
 	else{
         if(debug)
@@ -409,11 +410,6 @@ FILE2 create2 (char *filename)
 	}
 
 
-	strcat(caminho_completo,filename);
-
-    if(debug)
-        printf(" caminho completo: %s ",caminho_completo);
-
 	int bloconovo = aloca_bloco();
 	if(bloconovo==0){
         return ERRO_ESCRITA;
@@ -421,7 +417,8 @@ FILE2 create2 (char *filename)
 
 	DIRENT3 *novoarquivo;
 	novoarquivo = malloc(sizeof(*novoarquivo));
-	strcpy(novoarquivo->name,caminho_completo);
+	//printf(" nesse momento salvaremos %s no novoarquivo->name \n",filename);
+	strcpy(novoarquivo->name,filename);
 	novoarquivo->fileType = ARQ_REGULAR;
 	novoarquivo->fileSize=0;
 	//PARA ARQUIVOS REGULARES, NUMFILHOS INDICA O CURRENT POINTER DO ARQUIVO
@@ -448,10 +445,10 @@ FILE2 create2 (char *filename)
 			blocofilho = diretorio_atual->dirFilhos[i];
 			buffer_dir = readBlock(blocofilho);
 			filho = (DIRENT3*)buffer_dir;
-			if(strcmp(filho->name,caminho_completo)==0){
+			if(strcmp(filho->name,filename)==0){
 			    if(debug)
                     printf("\n ja existe arquivo com esse nome, excluindo... \n");
-				delete2(caminho_completo);
+				delete2(filename);
 				diretorio_atual->dirFilhos[i]=bloconovo;
 				excluiu=1;
 			}
@@ -473,10 +470,10 @@ FILE2 create2 (char *filename)
 			blocofilho = rootDirectory->dirFilhos[i];
 			buffer_dir = readBlock(blocofilho);
 			filho = (DIRENT3*)buffer_dir;
-			if(strcmp(filho->name,caminho_completo)==0){
+			if(strcmp(filho->name,filename)==0){
 			    if(debug)
                     printf("\n ja existe arquivo com esse nome, excluindo... \n");
-				delete2(caminho_completo);
+				delete2(filename);
 				rootDirectory->dirFilhos[i]=bloconovo;
 				root_excluiu=1;
 			}
