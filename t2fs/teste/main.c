@@ -46,5 +46,15 @@ int main( int argc, char *argv[])
    write2(handle, "batata", strlen("batata"));
     read2(handle, path, strlen("batata"));
     printf("MAIN - LIDO: %s\n", path);
+    getcwd2(path, 100);
+    printf("main: %s\n", path);
+    mkdir2("/a/b/c/d/////");
+    chdir2("/a/b///////////////////////////");
+    getcwd2(path, 100);
+    chdir2("/a/");
+    printf("main: %s\n", path);
+    delete2("caralhoa");
+
+
     return 0;
 }

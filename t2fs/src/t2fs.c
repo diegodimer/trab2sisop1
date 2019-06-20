@@ -508,7 +508,7 @@ FILE2 create2 (char *filename)
 }
 
 /*-----------------------------------------------------------------------------
-Fun��o:	Fun��o usada para remover (apagar) um arquivo do disco.
+Fun��o:	Fun��o usada para remover (apagar) um arquivo do disco. ARQUIVO PRECISA NECESSARIAMENTE ESTAR NO CURRENT PATH
 -----------------------------------------------------------------------------*/
 int delete2 (char *filename)
 {
@@ -516,80 +516,47 @@ int delete2 (char *filename)
     {
         init();
     }
-    char *string = strdup(filename); // pra caso d� problema com a string antes
-
-    DWORD block;
-    DIRENT3 *toBeRemoved = lookForDir(filename, &block); // procura diret�rio a ser removido
-    if(toBeRemoved == NULL)
+    // monta a hierarquia de onde está o arquivo a partir do currentPath (pode ser /a/b///////, aqui deixamos só /a/b)
+    char *str =strdup(currentPath);
+    char * pch;
+    char *str2 = malloc(strlen(str)+strlen(filename));
+    str2[0]='\0';
+    strcat(str2, "/");
+    pch = strtok (str,"/");
+    while (pch != NULL)
     {
-        printf("Arquivo nao encontrado!\n");
-        return -1;
+        strcat(str2, pch);
+        pch = strtok (NULL, "/");
+        strcat(str2, "/");
     }
-    if(toBeRemoved->fileType != ARQ_REGULAR)
-    {
-        printf("Nao eh arquivo!\n");
-        return -2;
-    }
-
-    DWORD *blocksToErase = NULL; // lista de blocos que precisam ser desalocados
-    int count = 1;
     if(debug)
-        printf("about to remove dir %s on block %d", toBeRemoved->name, block);
-    int i;
-
-    listBlocks(toBeRemoved, &blocksToErase, &count);
-
-    if(count == 1)
-    {
-        blocksToErase = malloc(sizeof(DWORD)); // se nao tem filhos poem s� ele na lista
-    }
-
-    blocksToErase[count-1] = block;
-
-    for(i=0; i<count; i++)
-    {
-        if(debug)
-            printf("%d\n", blocksToErase[i]);
-        libera_bloco(blocksToErase[i]); // libera o bloco
-
-    }
-    char *str = strtok(string, "/");
-    char *straux = str;
-    char *newPath = malloc(strlen(string));
-    newPath[0] = '/';
-    newPath[1] = '\0';
-    int encontrado=0;
-    while(!encontrado)
-    {
-        straux = strtok(NULL,"/");
-
-        if(straux== NULL)
-        {
-            if(debug)
-                printf("\n ->>> %s\n", newPath);
-            encontrado=1;
-        }
-        else
-        {
-
-            strcat(newPath, str);
-            strcat(newPath, "/");
-            str = straux;
-
-        }
-    }
-///
-    int indexToRemove;
-
-    DWORD blocoPai;
-    DIRENT3 *pai = lookForDir(newPath, &blocoPai);
+        printf("remove file in directory: %s\n", str2);
+    strcat(str2, filename);
     if(debug)
-        printf("pai: %s\n", pai->name);
+        printf("about to remove: %s\n",str2);
+/////////////////////// fim da arrumação do path atual
+    int i; // iterador
+    DWORD blockToErase; // bloco a ser removido
+    DIRENT3* fileToRemove = lookForDir(str2, &blockToErase); // procura o diretorio a ser removido;
+    if(fileToRemove == NULL){
+        printf("arquivo nao encontrado!\n");
+        return -3;
+    } else{
+    if(debug)
+        printf("delete2: found %s\n", fileToRemove->name);
+    }
 
-    // encontra nos filhos diret�rio pai o index do bloco que vai ser tirado e desloca o array todo uma posi��o atr�s dele
+    DWORD blocksToRemove = fileToRemove->setorDados; // blocos de dados do arquivo começam no primeiro e todos tem ponteiro pro próximo
+
+    remove_blocos(blocksToRemove); // remove todo o conteúdo do arquivo
+    libera_bloco(blockToErase); // remove a entrada de diretório
+
+    DWORD blockCurrentDir;
+    DIRENT3* pai = lookForDir(currentPath, &blockCurrentDir); // pega o pai do arquivo através do caminho atual
+    DWORD indexToRemove;
     for(i=0; i!= -1 ; i++)
     {
-        if(pai->dirFilhos[i] == block)
+        if(pai->dirFilhos[i] == blockToErase) // se o filho i é o filho que estou removendo
         {
             indexToRemove = i;
             i=-2;
@@ -597,11 +564,11 @@ int delete2 (char *filename)
     }
     for(i=indexToRemove; i<pai->numFilhos; i++)
     {
-        pai->dirFilhos[i] = pai->dirFilhos[i+1];
+        pai->dirFilhos[i] = pai->dirFilhos[i+1]; // desloco todo o array dos diretorio filhos do pai uma posicao a partir do removido
     }
-    pai->numFilhos = pai->numFilhos-1;
+    pai->numFilhos = pai->numFilhos-1; // decremento um dos filhos do pai
     //atualiza o pai no disco
-    writeBlock((unsigned char*)pai, blocoPai);
+    writeBlock((unsigned char*)pai, blockCurrentDir);
 
     return 0;
 
