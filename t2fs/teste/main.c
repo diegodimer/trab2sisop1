@@ -41,9 +41,10 @@ int main( int argc, char *argv[])
     unsigned char* demonio = readBlock(17);
     DIRENT3 *arq = (DIRENT3 *)demonio;
     printf("arq name: %s\n", arq->name);
-//    handle = open2("/a");
-//    write2(handle, "batata", strlen("batata"));
-//    read2(handle, path, strlen("batata"));
-//    printf("%s\n", path);
+    handle = open2("/a/caralhoa");
+    printf("handle: %d\n", handle);
+   write2(handle, "batata", strlen("batata"));
+    read2(handle, path, strlen("batata"));
+    printf("MAIN - LIDO: %s\n", path);
     return 0;
 }
